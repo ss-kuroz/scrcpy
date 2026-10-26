@@ -51,7 +51,7 @@ Có nút **Đổi thư mục** nếu muốn trỏ tay.
 | Frame rate | 30 / 60 / 90 / 120 / Max (`--max-fps`) |
 | Bitrate | `8M`, `16M`, `24M`… (`--video-bit-rate`) |
 | Âm thanh | **Tắt** (`--no-audio`) · **PC** (`output`, tắt loa máy) · **Cả hai** (`--audio-dup`, máy vẫn phát) |
-| Khoá landscape | `wm fixed-to-user-rotation enabled` + `user_rotation 1` trước khi mirror |
+| Xoay ngang trên PC | `--orientation=90` khi máy đang portrait — client-side, **không sửa setting điện thoại** |
 | Cho phép điều khiển | mặc định tắt (`--no-control` = chỉ xem) |
 | Tự connect wireless | tự `adb connect` các dịch vụ mDNS tìm thấy |
 

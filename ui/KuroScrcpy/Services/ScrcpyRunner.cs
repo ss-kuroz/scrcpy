@@ -17,7 +17,8 @@ public class MirrorOptions
     public string BitRate { get; set; } = "8M";
     public AudioMode Audio { get; set; } = AudioMode.PcOnly;
     public bool AllowControl { get; set; }
-    public bool LandscapeLock { get; set; } = true;
+    /// <summary>Xoay khung hinh ngang tren PC (--orientation), khong doi setting cua dien thoai.</summary>
+    public bool PcLandscape { get; set; } = true;
 }
 
 public class MirrorSession
@@ -77,12 +78,6 @@ public class ScrcpyRunner
             return;
         }
 
-        if (options.LandscapeLock)
-        {
-            var rotation = await _adb.LockLandscapeAsync(device.Serial);
-            _log($"[{device.Title}] khoá landscape: {rotation.Combined}");
-        }
-
         // Man hinh dang dozing thi scrcpy chi thay khung den
         await _adb.WakeAsync(device.Serial);
 
@@ -90,10 +85,12 @@ public class ScrcpyRunner
         var nativeWidth = 0;
         var nativeHeight = 0;
         var sizeText = await _adb.GetScreenSizeAsync(device.Serial);
+        var portrait = false;
         if (TryParseSize(sizeText, out var width, out var height))
         {
             nativeWidth = width;
             nativeHeight = height;
+            portrait = height > width;
             _log($"[{device.Title}] resolution gốc {nativeWidth}×{nativeHeight}");
         }
 
@@ -104,6 +101,14 @@ public class ScrcpyRunner
             "--render-fit=unscaled",
             $"--window-title={Quote(title)}",
         };
+
+        // Xoay ngang tren PC: --orientation la client-side, khong doi setting dien thoai
+        if (options.PcLandscape && portrait)
+        {
+            args.Add("--orientation=90");
+            (nativeWidth, nativeHeight) = (nativeHeight, nativeWidth);
+            _log($"[{device.Title}] xoay ngang trên PC (điện thoại giữ nguyên)");
+        }
 
         if (nativeWidth > 0 && nativeHeight > 0)
         {

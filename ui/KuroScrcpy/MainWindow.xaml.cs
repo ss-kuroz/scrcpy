@@ -64,7 +64,7 @@ public partial class MainWindow : Window
     private void ApplySettingsToUi()
     {
         BitRateBox.Text = _settings.BitRate;
-        ChkLandscape.IsChecked = _settings.LandscapeLock;
+        ChkLandscape.IsChecked = _settings.PcLandscape;
         ChkControl.IsChecked = _settings.AllowControl;
         ChkAutoConnect.IsChecked = _settings.AutoConnectWireless;
         PathText.Text = _adb.ScrcpyDir;
@@ -97,7 +97,7 @@ public partial class MainWindow : Window
             AudioMode.Both => "Both",
             _ => "PcOnly"
         };
-        _settings.LandscapeLock = ChkLandscape.IsChecked == true;
+        _settings.PcLandscape = ChkLandscape.IsChecked == true;
         _settings.AllowControl = ChkControl.IsChecked == true;
         _settings.AutoConnectWireless = ChkAutoConnect.IsChecked == true;
     }
@@ -274,7 +274,7 @@ public partial class MainWindow : Window
             BitRate = BitRateBox.Text.Trim(),
             Audio = SelectedAudio(),
             AllowControl = ChkControl.IsChecked == true,
-            LandscapeLock = ChkLandscape.IsChecked == true,
+            PcLandscape = ChkLandscape.IsChecked == true,
         };
 
         device.IsMirroring = true;

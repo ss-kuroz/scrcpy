@@ -191,14 +191,7 @@ public class AdbService
         return "";
     }
 
-    /// <summary>Danh thuc man hinh + bo qua keyguard (khong lam gi neu may dang sang).</summary>
+    /// <summary>Danh thuc man hinh (keyevent tam thoi, khong doi setting cua may).</summary>
     public Task<AdbResult> WakeAsync(string serial) =>
-        RunAsync($"-s \"{serial}\" shell \"input keyevent KEYCODE_WAKEUP; wm dismiss-keyguard\"", 10000);
-
-    /// <summary>Khoa cung huong ngang (landscape). Android 13+ can them fixed-to-user-rotation.</summary>
-    public Task<AdbResult> LockLandscapeAsync(string serial) =>
-        RunAsync($"-s \"{serial}\" shell \"wm fixed-to-user-rotation enabled; settings put system accelerometer_rotation 0; settings put system user_rotation 1; wm user-rotation lock 1\"", 15000);
-
-    public Task<AdbResult> UnlockRotationAsync(string serial) =>
-        RunAsync($"-s \"{serial}\" shell \"wm fixed-to-user-rotation default; settings put system accelerometer_rotation 1; wm user-rotation free\"", 15000);
+        RunAsync($"-s \"{serial}\" shell \"input keyevent KEYCODE_WAKEUP\"", 10000);
 }
