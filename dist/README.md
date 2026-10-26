@@ -28,7 +28,7 @@ Không patch source scrcpy — mọi thay đổi nằm ở script wrapper trong 
 `view-p4.cmd` / `view-p4b.cmd` chạy:
 
 ```bat
-scrcpy.exe --no-control --no-audio --max-size=0 --max-fps=60 --render-fit=unscaled ^
+scrcpy.exe --no-control --max-size=0 --max-fps=60 --render-fit=unscaled ^
   --window-width=<res_ngang> --window-height=<res_doc> --window-x=0 --window-y=0 ^
   --window-title="<serial> view-only <res>"
 ```
@@ -44,6 +44,25 @@ lock-window.ps1 -Title RMX5107 -Width 2362 -Height 1080 -Watch
 - `--max-size=0`: lấy đúng độ phân giải gốc của máy.
 - `--max-fps=60`: cap capture ở 60 fps (máy có thể tự nhảy 90/120/144 Hz, không cap thì
   scrcpy bám theo và tốn Wi-Fi/CPU vô ích).
+
+### Audio
+
+Script **không** truyền `--no-audio`, nên scrcpy forward cả tiếng. Mặc định
+`--audio-source=auto` → với display mirroring sẽ chọn `output`:
+
+| Nguồn | Hành vi |
+| --- | --- |
+| `output` (mặc định) | Forward toàn bộ âm thanh ra **PC**, đồng thời **tắt loa điện thoại** |
+| `playback` | Chỉ lấy audio của app đang play (app có thể opt-out), điện thoại vẫn phát |
+| `mic` | Lấy micro |
+
+- Hai điện thoại cùng mở → hai luồng audio **mix chung** vào output device mặc định của
+  Windows (scrcpy không cho chọn thiết bị ra). Muốn tách thì đổi default output hoặc
+  dùng virtual cable.
+- Muốn điện thoại vẫn kêu: thêm `--audio-source=playback`.
+- Muốn tắt tiếng hoàn toàn: thêm `--no-audio`.
+- Audio qua Wi-Fi dễ rè/giật do jitter; USB ổn định hơn. Nếu nghe giật, tăng
+  `--audio-buffer=200`.
 
 ### FPS thực tế
 
