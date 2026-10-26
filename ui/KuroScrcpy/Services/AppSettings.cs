@@ -13,46 +13,61 @@ public class AppSettings
     public bool AutoConnectWireless { get; set; } = true;
     public bool AllowControl { get; set; } = false;
 
-    private static string SettingsPath =>
+    /// <summary>Dia chi wireless da tung ket noi (ip:port), de connect lai khi mdns khong quang ba.</summary>
+    public List<string> KnownAddresses { get; set; } = new();
+
+    private static string? _resolvedPath;
+
+    private static string PrimaryPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                      "KuroScrcpy", "settings.json");
 
+    private static string FallbackPath => Path.Combine(AppContext.BaseDirectory, "settings.json");
+
+    private static string SettingsPath => _resolvedPath ?? PrimaryPath;
+
     public static AppSettings Load()
     {
-        try
+        foreach (var path in new[] { SettingsPath, FallbackPath })
         {
-            if (File.Exists(SettingsPath))
+            try
             {
-                var json = File.ReadAllText(SettingsPath);
+                if (!File.Exists(path)) continue;
+
+                var json = File.ReadAllText(path);
                 var loaded = JsonSerializer.Deserialize<AppSettings>(json);
-                if (loaded != null)
-                {
-                    if (string.IsNullOrWhiteSpace(loaded.ScrcpyDir) || !File.Exists(Path.Combine(loaded.ScrcpyDir, "scrcpy.exe")))
-                        loaded.ScrcpyDir = ResolveScrcpyDir();
-                    return loaded;
-                }
+                if (loaded == null) continue;
+
+                _resolvedPath = path;
+                if (string.IsNullOrWhiteSpace(loaded.ScrcpyDir) || !File.Exists(Path.Combine(loaded.ScrcpyDir, "scrcpy.exe")))
+                    loaded.ScrcpyDir = ResolveScrcpyDir();
+                return loaded;
+            }
+            catch
+            {
+                // file hong -> thu path khac
             }
         }
-        catch
-        {
-            // settings hong -> dung mac dinh
-        }
 
-        var settings = new AppSettings { ScrcpyDir = ResolveScrcpyDir() };
-        return settings;
+        return new AppSettings { ScrcpyDir = ResolveScrcpyDir() };
     }
 
     public void Save()
     {
-        try
+        foreach (var path in new[] { SettingsPath, FallbackPath })
         {
-            var dir = Path.GetDirectoryName(SettingsPath);
-            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
-        }
-        catch
-        {
-            // khong critical
+            try
+            {
+                var dir = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+                _resolvedPath = path;
+                return;
+            }
+            catch
+            {
+                // khong ghi duoc -> thu path tiep theo
+            }
         }
     }
 

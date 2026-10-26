@@ -135,6 +135,15 @@ public class AdbService
     public Task<AdbResult> PairAsync(string address, string code) =>
         RunAsync($"pair {address} {code}", 35000);
 
+    /// <summary>Khoi dong lai adb server: reset ca mDNS discovery khi danh sach trong (port wireless doi sau reboot).</summary>
+    public async Task<AdbResult> RestartServerAsync()
+    {
+        var stop = await RunAsync("kill-server", 15000);
+        await Task.Delay(600);
+        var start = await RunAsync("start-server", 25000);
+        return start with { Output = (stop.Combined + "\n" + start.Combined).Trim() };
+    }
+
     public Task<AdbResult> ConnectAsync(string address) =>
         RunAsync($"connect {address}", 20000);
 

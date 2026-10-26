@@ -75,7 +75,7 @@ public class DeviceEntry : INotifyPropertyChanged
             "device" => "Sẵn sàng",
             "unauthorized" => "Chưa cho phép — bấm Allow trên điện thoại",
             "offline" => "Offline",
-            "discovered" => "Wireless tìm thấy — chưa connect",
+            "discovered" => "Chưa kết nối — bấm Connect",
             "pairing" => "Đang mở pairing",
             _ => State
         };

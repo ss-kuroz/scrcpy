@@ -80,16 +80,34 @@
           </ListView>
 
           <Grid Grid.Row="2" Margin="0,12,0,0">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*"/>
-              <ColumnDefinition Width="*"/>
-              <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <Button x:Name="ConnectBtn" Grid.Column="0" Content="Connect" Style="{StaticResource Btn}"
-                    Margin="0,0,6,0" Click="ConnectBtn_Click"/>
-            <Button x:Name="DisconnectBtn" Grid.Column="1" Content="Disconnect" Style="{StaticResource Btn}"
-                    Margin="0,0,6,0" Click="DisconnectBtn_Click"/>
-            <Button Grid.Column="2" Content="Pair…" Style="{StaticResource Btn}" Click="PairBtn_Click"/>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="0,0,0,8">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBox x:Name="ManualAddressBox" Grid.Column="0" Height="32" VerticalContentAlignment="Center"
+                       ToolTip="ip:port của điện thoại, ví dụ 192.168.0.213:39409"/>
+              <Button Grid.Column="1" Content="Kết nối IP" Style="{StaticResource Btn}"
+                      Margin="8,0,0,0" Click="ManualConnectBtn_Click"/>
+            </Grid>
+
+            <Grid Grid.Row="1">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Button x:Name="ConnectBtn" Grid.Column="0" Content="Connect" Style="{StaticResource Btn}"
+                      Margin="0,0,6,0" Click="ConnectBtn_Click"/>
+              <Button x:Name="DisconnectBtn" Grid.Column="1" Content="Disconnect" Style="{StaticResource Btn}"
+                      Margin="0,0,6,0" Click="DisconnectBtn_Click"/>
+              <Button Grid.Column="2" Content="Pair…" Style="{StaticResource Btn}" Click="PairBtn_Click"/>
+            </Grid>
           </Grid>
         </Grid>
       </Border>

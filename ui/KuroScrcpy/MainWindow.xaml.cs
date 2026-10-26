@@ -17,7 +17,10 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<DeviceEntry> _devices = new();
     private readonly DispatcherTimer _timer;
     private readonly Dictionary<string, DateTime> _lastConnectAttempt = new(StringComparer.OrdinalIgnoreCase);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> _connectFailed = new(StringComparer.OrdinalIgnoreCase);
     private bool _refreshing;
+    private DateTime? _emptySince;
+    private DateTime _lastServerRestart = DateTime.MinValue;
 
     public MainWindow()
     {
@@ -133,11 +136,11 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var devices = await _adb.GetDevicesAsync();
+            var rawDevices = await _adb.GetDevicesAsync();
             var mdns = await _adb.GetMdnsServicesAsync();
 
             // Mot may co the hien thi thanh nhieu transport (USB / ip:port / mDNS) -> gop theo hardware id
-            devices = devices
+            var devices = rawDevices
                 .GroupBy(d => string.IsNullOrEmpty(d.HardwareId) ? d.Serial : d.HardwareId)
                 .Select(g => g.OrderBy(d => d.Preference).First())
                 .ToList();
@@ -165,43 +168,102 @@ public partial class MainWindow : Window
                 }
             }
 
+            // Nho dia chi wireless da ket noi (de connect lai khi mdns khong quang ba)
+            var remembered = false;
+            foreach (var raw in rawDevices.Where(d => d.State == "device" && d.Serial.Contains(':')))
+            {
+                if (_settings.KnownAddresses.Contains(raw.Serial, StringComparer.OrdinalIgnoreCase)) continue;
+                _settings.KnownAddresses.Add(raw.Serial);
+                remembered = true;
+            }
+            if (remembered) _settings.Save();
+
+            var candidates = mdns.Where(s => s.IsConnect).Select(s => s.Address)
+                                 .Concat(_settings.KnownAddresses)
+                                 .Distinct(StringComparer.OrdinalIgnoreCase)
+                                 .ToList();
+
+            // Recovery: mDNS cua adb hay bi ket, nhat la sau khi dien thoai reboot (port wireless doi).
+            // Chi restart khi khong mirror de khong cat phien dang chay.
+            var noSignal = rawDevices.Count == 0 && mdns.Count == 0;
+            var staleReachable = false;
+            if (_runner.Sessions.Count == 0)
+            {
+                foreach (var address in _settings.KnownAddresses)
+                {
+                    if (rawDevices.Any(d => d.Serial.Equals(address, StringComparison.OrdinalIgnoreCase))) continue;
+                    if (mdns.Any(s => s.Address.Equals(address, StringComparison.OrdinalIgnoreCase))) continue;
+                    if (!_connectFailed.TryGetValue(address, out var failedAt)) continue;
+                    if ((DateTime.UtcNow - failedAt).TotalSeconds > 40) continue;
+                    if (await IsTcpOpenAsync(address)) { staleReachable = true; break; }
+                }
+            }
+
+            if (_runner.Sessions.Count == 0 && (staleReachable || noSignal))
+            {
+                _emptySince ??= DateTime.UtcNow;
+                var waited = (DateTime.UtcNow - _emptySince.Value).TotalSeconds;
+                if ((staleReachable || waited > 20) && (DateTime.UtcNow - _lastServerRestart).TotalSeconds > 90)
+                {
+                    _lastServerRestart = DateTime.UtcNow;
+                    _emptySince = null;
+                    AppendLog("Thiết bị không hiện trong adb — khởi động lại adb server…");
+                    var restart = await _adb.RestartServerAsync();
+                    AppendLog("adb restart: " + restart.Combined);
+                }
+            }
+            else
+            {
+                _emptySince = null;
+            }
+
             if (_settings.AutoConnectWireless)
             {
-                foreach (var service in mdns.Where(s => s.IsConnect))
+                foreach (var address in candidates)
                 {
-                    if (devices.Any(d => d.Serial == service.Address)) continue;
-                    if (_lastConnectAttempt.TryGetValue(service.Address, out var last) &&
-                        (DateTime.UtcNow - last).TotalSeconds < 20) continue;
+                    if (rawDevices.Any(d => d.Serial == address)) continue;
+                    if (_lastConnectAttempt.TryGetValue(address, out var last) &&
+                        (DateTime.UtcNow - last).TotalSeconds < 30) continue;
 
-                    _lastConnectAttempt[service.Address] = DateTime.UtcNow;
-                    AppendLog($"Tự connect {service.Address}…");
+                    _lastConnectAttempt[address] = DateTime.UtcNow;
+                    AppendLog($"Tự connect {address}…");
                     _ = Task.Run(async () =>
                     {
-                        var result = await _adb.ConnectAsync(service.Address);
-                        AppendLog($"connect {service.Address}: {result.Combined}");
+                        var result = await _adb.ConnectAsync(address);
+                        if (result.Combined.Contains("connected to", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _connectFailed.TryRemove(address, out _);
+                        }
+                        else
+                        {
+                            _connectFailed[address] = DateTime.UtcNow;
+                        }
+                        AppendLog($"connect {address}: {result.Combined}");
                     });
                 }
             }
 
-            foreach (var service in mdns.Where(s => s.IsConnect))
+            // Hien thi dia chi da biet nhung chua ket noi, de bam Connect
+            foreach (var address in candidates)
             {
-                if (devices.Any(d => d.Serial == service.Address)) continue;
-                if (_devices.Any(d => d.Serial == service.Address)) continue;
+                if (rawDevices.Any(d => d.Serial == address)) continue;
+                if (_devices.Any(d => d.Serial == address)) continue;
                 _devices.Add(new DeviceEntry
                 {
-                    Serial = service.Address,
-                    Model = service.Name,
-                    Address = service.Address,
+                    Serial = address,
+                    Address = address,
                     State = "discovered"
                 });
             }
 
             var liveSerials = devices.Select(d => d.Serial).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var liveAddresses = mdns.Select(s => s.Address).ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (var entry in _devices.ToList())
             {
                 if (entry.IsMirroring) continue;
-                var alive = entry.IsAdbDevice ? liveSerials.Contains(entry.Serial) : liveAddresses.Contains(entry.Serial);
+                if (_settings.KnownAddresses.Contains(entry.Serial, StringComparer.OrdinalIgnoreCase)) continue;
+                var alive = entry.IsAdbDevice
+                    ? liveSerials.Contains(entry.Serial)
+                    : candidates.Contains(entry.Serial, StringComparer.OrdinalIgnoreCase);
                 if (!alive) _devices.Remove(entry);
             }
 
@@ -244,6 +306,27 @@ public partial class MainWindow : Window
             var entry = _devices.FirstOrDefault(d => d.Serial == serial);
             if (entry != null) entry.DeviceName = name;
         });
+    }
+
+    /// <summary>Kiem tra nhanh port adb wireless con mo (dien thoai con song) — dung de biet co nen restart adb server.</summary>
+    private static async Task<bool> IsTcpOpenAsync(string address, int timeoutMs = 500)
+    {
+        var idx = address.LastIndexOf(':');
+        if (idx <= 0) return false;
+        var host = address[..idx];
+        if (!int.TryParse(address[(idx + 1)..], out var port)) return false;
+
+        try
+        {
+            using var client = new System.Net.Sockets.TcpClient();
+            using var cts = new CancellationTokenSource(timeoutMs);
+            await client.ConnectAsync(host, port, cts.Token);
+            return client.Connected;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private void UpdateButtons()
@@ -321,7 +404,34 @@ public partial class MainWindow : Window
         AppendLog($"adb connect {address}…");
         var result = await _adb.ConnectAsync(address);
         AppendLog($"connect {address}: {result.Combined}");
+        if (result.Combined.Contains("connected to", StringComparison.OrdinalIgnoreCase)) RememberAddress(address);
         await RefreshAsync();
+    }
+
+    private async void ManualConnectBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var address = ManualAddressBox.Text.Trim();
+        if (address.Length == 0) return;
+
+        AppendLog($"adb connect {address}…");
+        var result = await _adb.ConnectAsync(address);
+        AppendLog($"connect {address}: {result.Combined}");
+
+        if (result.Combined.Contains("connected to", StringComparison.OrdinalIgnoreCase))
+        {
+            RememberAddress(address);
+            ManualAddressBox.Text = "";
+        }
+
+        await RefreshAsync();
+    }
+
+    private void RememberAddress(string address)
+    {
+        if (string.IsNullOrWhiteSpace(address) || !address.Contains(':')) return;
+        if (_settings.KnownAddresses.Contains(address, StringComparer.OrdinalIgnoreCase)) return;
+        _settings.KnownAddresses.Add(address);
+        _settings.Save();
     }
 
     private async void DisconnectBtn_Click(object sender, RoutedEventArgs e)

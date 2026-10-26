@@ -31,6 +31,11 @@ Có nút **Đổi thư mục** nếu muốn trỏ tay.
 - **Wireless**: bật Wireless debugging + “Pair device with pairing code” trên điện thoại → bấm **Pair…**,
   chọn dịch vụ pairing (tự hiện), nhập mã 6 số. Sau khi pair, app tự `adb connect`.
 - **Connect / Disconnect** cho thiết bị wireless đã pair nhưng chưa kết nối.
+- **Nhớ địa chỉ wireless**: mọi `ip:port` từng kết nối được lưu lại, nên khi mDNS của adb “quên” máy
+  (hay gặp sau khi điện thoại reboot / tắt bật wireless debugging) app vẫn tự `adb connect` lại đúng địa chỉ.
+- **Kết nối IP**: gõ tay `ip:port` (lấy trong Wireless debugging trên máy) khi port đã đổi.
+- **Tự phục hồi adb**: nếu không thấy thiết bị nào > 20 s, hoặc địa chỉ đã lưu còn mở port nhưng adb
+  không nhận, app `adb kill-server` + `start-server` để quét lại mDNS (không làm khi đang mirror).
 - Nút **Làm mới** để quét lại ngay.
 
 ### Mirror
@@ -42,7 +47,8 @@ Có nút **Đổi thư mục** nếu muốn trỏ tay.
   scale cho vừa màn hình PC.
 - **Khoá cửa sổ**: bỏ `WS_THICKFRAME` + `WS_MAXIMIZEBOX`, ép client area đúng resolution gốc,
   `--render-fit=unscaled`. Không kéo viền, không maximize, không snap được.
-- **Xếp lại cửa sổ**: tự xếp lưới theo thứ tự bắt đầu (stack dọc khi 2 cửa sổ không vừa ngang).- **Bắt đầu/Dừng/Dừng tất cả** theo từng thiết bị.
+- **Xếp lại cửa sổ**: tự xếp lưới theo thứ tự bắt đầu (stack dọc khi 2 cửa sổ không vừa ngang).
+- **Bắt đầu/Dừng/Dừng tất cả** theo từng thiết bị.
 
 ### Tuỳ chọn
 
@@ -53,7 +59,7 @@ Có nút **Đổi thư mục** nếu muốn trỏ tay.
 | Âm thanh | **Tắt** (`--no-audio`) · **PC** (`output`, tắt loa máy) · **Cả hai** (`--audio-dup`, máy vẫn phát) |
 | Xoay ngang trên PC | `--orientation=90` khi máy đang portrait — client-side, **không sửa setting điện thoại** |
 | Cho phép điều khiển | mặc định tắt (`--no-control` = chỉ xem) |
-| Tự connect wireless | tự `adb connect` các dịch vụ mDNS tìm thấy |
+| Tự connect wireless | tự `adb connect` các dịch vụ mDNS tìm thấy + địa chỉ đã lưu |
 
 ## Cấu trúc
 
@@ -65,7 +71,7 @@ ui/KuroScrcpy/
   Services/AdbService.cs    chạy adb, parse devices/mdns, pair/connect, đọc resolution
   Services/ScrcpyRunner.cs  spawn scrcpy, theo dõi cửa sổ, khoá size, xếp cửa sổ
   Services/WindowTools.cs   Win32: EnumWindows, style, AdjustWindowRectExForDpi, SetWindowPos
-  Services/AppSettings.cs   lưu %APPDATA%\KuroScrcpy\settings.json
+  Services/AppSettings.cs   lưu %APPDATA%\KuroScrcpy\settings.json (fallback: cạnh exe)
 ```
 
 ## Ghi chú
