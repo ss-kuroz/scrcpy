@@ -97,7 +97,7 @@ public class ScrcpyRunner
             _log($"[{device.Title}] resolution gốc {nativeWidth}×{nativeHeight}");
         }
 
-        var title = $"KuroScrcpy|{device.Title}|{device.Serial}";
+        var title = device.Title;
         var args = new List<string>
         {
             "-s", Quote(device.Serial),

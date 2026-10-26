@@ -36,6 +36,7 @@ Có nút **Đổi thư mục** nếu muốn trỏ tay.
 ### Mirror
 
 - Chọn thiết bị → **Bắt đầu mirror**. Mỗi máy một cửa sổ scrcpy riêng, nhiều máy chạy song song.
+- **Tên cửa sổ** = tên thiết bị (`settings get global device_name`, vd `realme 15T`), fallback về model.
 - **Resolution**: app đọc `cur=WxH` từ `dumpsys window displays` (đúng theo hướng đang xoay) và truyền
   `--window-width/--window-height` cho scrcpy → luôn 1:1 với màn hình điện thoại, không bị scrcpy
   scale cho vừa màn hình PC.

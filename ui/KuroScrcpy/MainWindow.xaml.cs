@@ -158,6 +158,11 @@ public partial class MainWindow : Window
                 {
                     _ = LoadResolutionAsync(entry.Serial);
                 }
+
+                if (entry.State == "device" && string.IsNullOrEmpty(entry.DeviceName))
+                {
+                    _ = LoadDeviceNameAsync(entry.Serial);
+                }
             }
 
             if (_settings.AutoConnectWireless)
@@ -227,6 +232,17 @@ public partial class MainWindow : Window
         {
             var entry = _devices.FirstOrDefault(d => d.Serial == serial);
             if (entry != null) entry.Resolution = size;
+        });
+    }
+
+    private async Task LoadDeviceNameAsync(string serial)
+    {
+        var name = await _adb.GetDeviceNameAsync(serial);
+        if (string.IsNullOrWhiteSpace(name)) return;
+        await Dispatcher.InvokeAsync(() =>
+        {
+            var entry = _devices.FirstOrDefault(d => d.Serial == serial);
+            if (entry != null) entry.DeviceName = name;
         });
     }
 

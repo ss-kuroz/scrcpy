@@ -9,6 +9,7 @@ public class DeviceEntry : INotifyPropertyChanged
 {
     private string _serial = "";
     private string _model = "";
+    private string _deviceName = "";
     private string _state = "";
     private string _resolution = "";
     private bool _mirroring;
@@ -24,6 +25,13 @@ public class DeviceEntry : INotifyPropertyChanged
     {
         get => _model;
         set { if (Set(ref _model, value)) { Notify(nameof(Title)); Notify(nameof(Subtitle)); } }
+    }
+
+    /// <summary>Ten hien thi cua dien thoai (Settings -> Device name), vd "realme 15T".</summary>
+    public string DeviceName
+    {
+        get => _deviceName;
+        set { if (Set(ref _deviceName, value)) { Notify(nameof(Title)); Notify(nameof(Subtitle)); } }
     }
 
     /// <summary>device | unauthorized | offline | discovered | pairing</summary>
@@ -56,7 +64,9 @@ public class DeviceEntry : INotifyPropertyChanged
 
     public bool IsAdbDevice => State is "device" or "unauthorized" or "offline";
 
-    public string Title => string.IsNullOrWhiteSpace(Model) ? Serial : Model;
+    public string Title => !string.IsNullOrWhiteSpace(DeviceName)
+        ? DeviceName
+        : string.IsNullOrWhiteSpace(Model) ? Serial : Model;
 
     public string StateText => IsMirroring
         ? "Đang mirror"
@@ -74,7 +84,9 @@ public class DeviceEntry : INotifyPropertyChanged
     {
         get
         {
-            var parts = new List<string> { Serial };
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(DeviceName) && !string.IsNullOrWhiteSpace(Model)) parts.Add(Model);
+            parts.Add(Serial);
             if (!string.IsNullOrEmpty(Resolution)) parts.Add(Resolution);
             parts.Add(StateText);
             return string.Join("  •  ", parts);

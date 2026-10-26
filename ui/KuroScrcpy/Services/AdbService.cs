@@ -175,6 +175,22 @@ public class AdbService
         return size.Replace(" ", "").Replace('x', '×');
     }
 
+    /// <summary>Ten hien thi cua dien thoai (Settings -> Device name).</summary>
+    public async Task<string> GetDeviceNameAsync(string serial)
+    {
+        var output = await ShellAsync(serial, "settings get global device_name");
+        foreach (var raw in output.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+            if (line.Equals("null", StringComparison.OrdinalIgnoreCase)) continue;
+            if (line.StartsWith("Error", StringComparison.OrdinalIgnoreCase)) continue;
+            if (line.Contains("Exception", StringComparison.Ordinal)) continue;
+            return line;
+        }
+        return "";
+    }
+
     /// <summary>Danh thuc man hinh + bo qua keyguard (khong lam gi neu may dang sang).</summary>
     public Task<AdbResult> WakeAsync(string serial) =>
         RunAsync($"-s \"{serial}\" shell \"input keyevent KEYCODE_WAKEUP; wm dismiss-keyguard\"", 10000);
