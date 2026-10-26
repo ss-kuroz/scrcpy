@@ -13,6 +13,7 @@ public partial class MainWindow : Window
 {
     private readonly AppSettings _settings;
     private readonly AdbService _adb = new();
+    private AdbService? _remote;
     private readonly ScrcpyRunner _runner;
     private readonly ObservableCollection<DeviceEntry> _devices = new();
     private readonly DispatcherTimer _timer;
@@ -29,7 +30,14 @@ public partial class MainWindow : Window
 
         _settings = AppSettings.Load();
         _adb.ScrcpyDir = _settings.ScrcpyDir;
-        _adb.ServerAddress = _settings.AdbServerHost;
+        if (!string.IsNullOrWhiteSpace(_settings.AdbServerHost))
+        {
+            _remote = new AdbService
+            {
+                ScrcpyDir = _settings.ScrcpyDir,
+                ServerAddress = _settings.AdbServerHost,
+            };
+        }
         _runner = new ScrcpyRunner(_adb, AppendLog);
 
         DevicesList.ItemsSource = _devices;
@@ -63,6 +71,41 @@ public partial class MainWindow : Window
     }
 
     private DeviceEntry? Selected => DevicesList.SelectedItem as DeviceEntry;
+
+    /// <summary>Cac nguon adb: luon co may nay, them laptop neu da cau hinh.</summary>
+    private IEnumerable<AdbService> Sources
+    {
+        get
+        {
+            yield return _adb;
+            if (_remote != null) yield return _remote;
+        }
+    }
+
+    /// <summary>adb server phu trach mot thiet bi (local hoac laptop).</summary>
+    private AdbService SourceFor(DeviceEntry? device)
+    {
+        if (device != null && _remote != null &&
+            string.Equals(device.SourceAddress, _remote.ServerAddress, StringComparison.OrdinalIgnoreCase))
+        {
+            return _remote;
+        }
+        return _adb;
+    }
+
+    private static string DeviceKey(AdbDevice device) =>
+        string.IsNullOrEmpty(device.HardwareId) ? "serial:" + device.Serial : "hw:" + device.HardwareId;
+
+    /// <summary>Serial USB la serial phan cung; wireless la ip:port hoac ten mDNS adb-...</summary>
+    private static bool IsUsbSerial(string serial) =>
+        !serial.Contains(':') && !serial.StartsWith("adb-", StringComparison.OrdinalIgnoreCase);
+
+    private static int SourcePreference(AdbService source, AdbDevice device)
+    {
+        var usb = IsUsbSerial(device.Serial);
+        if (!source.IsRemote) return usb ? 0 : 2;
+        return usb ? 1 : 3;
+    }
 
     // ---------- settings <-> UI ----------
 
@@ -104,7 +147,7 @@ public partial class MainWindow : Window
         };
         _settings.AllowControl = ChkControl.IsChecked == true;
         _settings.AutoConnectWireless = ChkAutoConnect.IsChecked == true;
-        _settings.AdbServerHost = _adb.ServerAddress;
+        _settings.AdbServerHost = RemoteAdbBox.Text.Trim();
     }
 
     private int SelectedFps()
@@ -138,50 +181,73 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var rawDevices = await _adb.GetDevicesAsync();
+            // Lay thiet bi tu tat ca nguon: adb tren may nay + adb server tu xa (laptop dang cam may)
+            var collected = new List<(AdbService Source, AdbDevice Device)>();
+            var remoteFailed = false;
+
+            foreach (var source in Sources)
+            {
+                var list = await source.GetDevicesAsync();
+                if (source.IsRemote && list.Count == 0)
+                {
+                    remoteFailed = true;
+                    if (!_remoteWarned)
+                    {
+                        _remoteWarned = true;
+                        var probe = await source.RunAsync("devices", 5000);
+                        AppendLog($"Không thấy thiết bị từ adb server {source.ServerAddress}: {probe.Combined}");
+                    }
+                }
+                collected.AddRange(list.Select(d => (source, d)));
+            }
+
+            if (!remoteFailed) _remoteWarned = false;
+
+            var rawDevices = collected.Where(x => !x.Source.IsRemote).Select(x => x.Device).ToList();
             var mdns = await _adb.GetMdnsServicesAsync();
 
-            // adb server tu xa chet / laptop chua chay server -> bao ro mot lan
-            if (_adb.IsRemote && rawDevices.Count == 0)
-            {
-                if (!_remoteWarned)
-                {
-                    _remoteWarned = true;
-                    var probe = await _adb.RunAsync("devices", 5000);
-                    AppendLog($"Không thấy thiết bị từ adb server {_adb.ServerAddress}: {probe.Combined}");
-                }
-            }
-            else
-            {
-                _remoteWarned = false;
-            }
-
-            // Mot may co the hien thi thanh nhieu transport (USB / ip:port / mDNS) -> gop theo hardware id
-            var devices = rawDevices
-                .GroupBy(d => string.IsNullOrEmpty(d.HardwareId) ? d.Serial : d.HardwareId)
-                .Select(g => g.OrderBy(d => d.Preference).First())
+            // Gop cung mot may (USB / wireless / nhieu may tinh) theo hardware id.
+            // Uu tien: USB may nay > USB may khac trong LAN > wireless may nay > wireless may khac.
+            var chosen = collected
+                .GroupBy(x => DeviceKey(x.Device))
+                .Select(g => g.OrderBy(x => SourcePreference(x.Source, x.Device))
+                              .ThenBy(x => x.Device.Preference)
+                              .First())
                 .ToList();
 
-            foreach (var device in devices)
+            foreach (var (source, device) in chosen)
             {
-                var entry = _devices.FirstOrDefault(d => d.Serial == device.Serial);
+                var entry = _devices.FirstOrDefault(d => d.Serial == device.Serial)
+                    ?? (string.IsNullOrEmpty(device.HardwareId)
+                        ? null
+                        : _devices.FirstOrDefault(d => !string.IsNullOrEmpty(d.HardwareId) && d.HardwareId == device.HardwareId));
+
                 if (entry == null)
                 {
-                    entry = new DeviceEntry { Serial = device.Serial };
+                    entry = new DeviceEntry();
                     _devices.Add(entry);
                 }
 
+                // Dang mirror thi giu serial/nguon cua phien dang chay
+                if (!entry.IsMirroring)
+                {
+                    entry.Serial = device.Serial;
+                    entry.SourceAddress = source.ServerAddress;
+                    entry.IsUsb = IsUsbSerial(device.Serial);
+                }
+
+                entry.HardwareId = device.HardwareId;
                 if (!string.IsNullOrWhiteSpace(device.Model)) entry.Model = device.Model;
                 entry.State = device.State;
 
                 if (entry.State == "device" && string.IsNullOrEmpty(entry.Resolution))
                 {
-                    _ = LoadResolutionAsync(entry.Serial);
+                    _ = LoadResolutionAsync(entry, SourceFor(entry));
                 }
 
                 if (entry.State == "device" && string.IsNullOrEmpty(entry.DeviceName))
                 {
-                    _ = LoadDeviceNameAsync(entry.Serial);
+                    _ = LoadDeviceNameAsync(entry, SourceFor(entry));
                 }
             }
 
@@ -275,22 +341,23 @@ public partial class MainWindow : Window
                 });
             }
 
-            var liveSerials = devices.Select(d => d.Serial).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var liveSerials = chosen.Select(x => x.Device.Serial).ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (var entry in _devices.ToList())
             {
                 if (entry.IsMirroring) continue;
-                if (!_adb.IsRemote && _settings.KnownAddresses.Contains(entry.Serial, StringComparer.OrdinalIgnoreCase)) continue;
+                if (!entry.IsRemoteSource && _settings.KnownAddresses.Contains(entry.Serial, StringComparer.OrdinalIgnoreCase)) continue;
                 var alive = entry.IsAdbDevice
                     ? liveSerials.Contains(entry.Serial)
                     : candidates.Contains(entry.Serial, StringComparer.OrdinalIgnoreCase);
                 if (!alive) _devices.Remove(entry);
             }
 
-            var ready = devices.Count(d => d.State == "device");
+            var ready = chosen.Count(x => x.Device.State == "device");
+            var usbCount = chosen.Count(x => IsUsbSerial(x.Device.Serial));
             var pairing = mdns.Count(s => s.IsPairing);
-            SubtitleText.Text = $"{ready} thiết bị sẵn sàng  •  {devices.Count} kết nối adb  •  {pairing} dịch vụ pairing";
-            StatusText.Text = _adb.IsRemote
-                ? $"{_adb.ScrcpyDir}  •  adb từ xa: {_adb.ServerAddress}"
+            SubtitleText.Text = $"{ready} thiết bị sẵn sàng ({usbCount} USB)  •  {chosen.Count} kết nối adb  •  {pairing} dịch vụ pairing";
+            StatusText.Text = _remote != null
+                ? $"{_adb.ScrcpyDir}  •  adb: máy này + {_remote.ServerAddress}"
                 : _adb.ScrcpyDir;
 
             if (DevicesList.SelectedItem == null && _devices.Count > 0) DevicesList.SelectedIndex = 0;
@@ -307,9 +374,10 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task LoadResolutionAsync(string serial)
+    private async Task LoadResolutionAsync(DeviceEntry device, AdbService source)
     {
-        var size = await _adb.GetScreenSizeAsync(serial);
+        var serial = device.Serial;
+        var size = await source.GetScreenSizeAsync(serial);
         if (string.IsNullOrWhiteSpace(size)) return;
         await Dispatcher.InvokeAsync(() =>
         {
@@ -318,9 +386,10 @@ public partial class MainWindow : Window
         });
     }
 
-    private async Task LoadDeviceNameAsync(string serial)
+    private async Task LoadDeviceNameAsync(DeviceEntry device, AdbService source)
     {
-        var name = await _adb.GetDeviceNameAsync(serial);
+        var serial = device.Serial;
+        var name = await source.GetDeviceNameAsync(serial);
         if (string.IsNullOrWhiteSpace(name)) return;
         await Dispatcher.InvokeAsync(() =>
         {
@@ -380,10 +449,11 @@ public partial class MainWindow : Window
             AllowControl = ChkControl.IsChecked == true,
         };
 
+        var source = SourceFor(device);
         device.IsMirroring = true;
         UpdateButtons();
 
-        await _runner.StartAsync(device, options);
+        await _runner.StartAsync(device, options, source);
 
         if (!_runner.IsRunning(device.Serial))
         {
@@ -394,7 +464,7 @@ public partial class MainWindow : Window
         {
             // Sau khi khoá landscape, resolution hien tai co the khac luc quet -> doc lai
             device.Resolution = "";
-            await LoadResolutionAsync(device.Serial);
+            await LoadResolutionAsync(device, source);
         }
     }
 
@@ -419,24 +489,23 @@ public partial class MainWindow : Window
     private async void RemoteAdbBtn_Click(object sender, RoutedEventArgs e)
     {
         var address = RemoteAdbBox.Text.Trim();
-        var previous = _adb.ServerAddress;
-
-        _adb.ServerAddress = address;
         _settings.AdbServerHost = address;
         _settings.Save();
+        _remoteWarned = false;
 
         if (address.Length == 0)
         {
-            AppendLog("ADB server: dùng adb trên máy này");
+            _remote = null;
+            AppendLog("ADB laptop: tắt — chỉ dùng adb trên máy này");
         }
         else
         {
-            AppendLog($"ADB server từ xa: {AdbService.NormalizeServer(address)} — mọi lệnh adb/scrcpy đi qua máy đó");
-        }
-
-        if (!string.Equals(previous, address, StringComparison.OrdinalIgnoreCase) && _runner.Sessions.Count == 0)
-        {
-            _devices.Clear();
+            _remote = new AdbService
+            {
+                ScrcpyDir = _adb.ScrcpyDir,
+                ServerAddress = address,
+            };
+            AppendLog($"ADB laptop: {AdbService.NormalizeServer(address)} — danh sách gộp máy này + laptop");
         }
 
         await RefreshAsync();
@@ -447,10 +516,14 @@ public partial class MainWindow : Window
         var device = Selected;
         if (device == null) return;
         var address = string.IsNullOrWhiteSpace(device.Address) ? device.Serial : device.Address;
+        var source = SourceFor(device);
         AppendLog($"adb connect {address}…");
-        var result = await _adb.ConnectAsync(address);
+        var result = await source.ConnectAsync(address);
         AppendLog($"connect {address}: {result.Combined}");
-        if (result.Combined.Contains("connected to", StringComparison.OrdinalIgnoreCase)) RememberAddress(address);
+        if (result.Combined.Contains("connected to", StringComparison.OrdinalIgnoreCase) && !device.IsRemoteSource)
+        {
+            RememberAddress(address);
+        }
         await RefreshAsync();
     }
 
@@ -486,7 +559,7 @@ public partial class MainWindow : Window
         var device = Selected;
         if (device == null) return;
         var address = string.IsNullOrWhiteSpace(device.Address) ? device.Serial : device.Address;
-        var result = await _adb.DisconnectAsync(address);
+        var result = await SourceFor(device).DisconnectAsync(address);
         AppendLog($"disconnect {address}: {result.Combined}");
         await RefreshAsync();
     }
@@ -513,6 +586,7 @@ public partial class MainWindow : Window
             var dir = Path.GetDirectoryName(dialog.FileName);
             if (string.IsNullOrEmpty(dir)) return;
             _adb.ScrcpyDir = dir;
+            if (_remote != null) _remote.ScrcpyDir = dir;
             _settings.ScrcpyDir = dir;
             _settings.Save();
             PathText.Text = dir;

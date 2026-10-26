@@ -4,7 +4,7 @@ using System.Windows.Media;
 
 namespace KuroScrcpy.Models;
 
-/// <summary>Mot thiet bi trong danh sach: co the la adb device, hoac mot mdns service chua connect.</summary>
+/// <summary>Mot thiet bi trong danh sach: co the la adb device, hoac mot dia chi wireless chua connect.</summary>
 public class DeviceEntry : INotifyPropertyChanged
 {
     private string _serial = "";
@@ -12,13 +12,16 @@ public class DeviceEntry : INotifyPropertyChanged
     private string _deviceName = "";
     private string _state = "";
     private string _resolution = "";
+    private string _hardwareId = "";
+    private string _sourceAddress = "";
+    private bool _isUsb;
     private bool _mirroring;
     private string _address = "";
 
     public string Serial
     {
         get => _serial;
-        set { if (Set(ref _serial, value)) Notify(nameof(Subtitle)); }
+        set { if (Set(ref _serial, value)) { Notify(nameof(Subtitle)); Notify(nameof(ConnectionLabel)); Notify(nameof(ConnectionBrush)); Notify(nameof(ConnectionHint)); } }
     }
 
     public string Model
@@ -38,7 +41,7 @@ public class DeviceEntry : INotifyPropertyChanged
     public string State
     {
         get => _state;
-        set { if (Set(ref _state, value)) { Notify(nameof(StateText)); Notify(nameof(StatusBrush)); Notify(nameof(Subtitle)); Notify(nameof(CanStart)); } }
+        set { if (Set(ref _state, value)) { Notify(nameof(StateText)); Notify(nameof(StatusBrush)); Notify(nameof(Subtitle)); Notify(nameof(CanStart)); Notify(nameof(ConnectionLabel)); Notify(nameof(ConnectionBrush)); Notify(nameof(ConnectionHint)); } }
     }
 
     public string Resolution
@@ -60,6 +63,29 @@ public class DeviceEntry : INotifyPropertyChanged
         set => Set(ref _address, value);
     }
 
+    /// <summary>hardware id cua may (adb device:...), de gop cung mot may giua USB va wireless.</summary>
+    public string HardwareId
+    {
+        get => _hardwareId;
+        set => Set(ref _hardwareId, value);
+    }
+
+    /// <summary>"" = adb tren may nay; "ip:port" = adb server tu xa (vd laptop dang cam may).</summary>
+    public string SourceAddress
+    {
+        get => _sourceAddress;
+        set { if (Set(ref _sourceAddress, value)) { Notify(nameof(IsRemoteSource)); Notify(nameof(ConnectionLabel)); Notify(nameof(ConnectionBrush)); Notify(nameof(ConnectionHint)); Notify(nameof(Subtitle)); } }
+    }
+
+    /// <summary>True = may dang cam USB (serial phan cung), False = wireless (ip:port / mdns).</summary>
+    public bool IsUsb
+    {
+        get => _isUsb;
+        set { if (Set(ref _isUsb, value)) { Notify(nameof(ConnectionLabel)); Notify(nameof(ConnectionBrush)); Notify(nameof(ConnectionHint)); Notify(nameof(Subtitle)); } }
+    }
+
+    public bool IsRemoteSource => SourceAddress.Length > 0;
+
     public bool IsWireless => Serial.Contains(':') || Serial.StartsWith("adb-", StringComparison.OrdinalIgnoreCase);
 
     public bool IsAdbDevice => State is "device" or "unauthorized" or "offline";
@@ -67,6 +93,45 @@ public class DeviceEntry : INotifyPropertyChanged
     public string Title => !string.IsNullOrWhiteSpace(DeviceName)
         ? DeviceName
         : string.IsNullOrWhiteSpace(Model) ? Serial : Model;
+
+    /// <summary>Host cua adb server tu xa, bo port 5037 mac dinh cho gon.</summary>
+    public string SourceLabel
+    {
+        get
+        {
+            var address = SourceAddress;
+            if (address.EndsWith(":5037", StringComparison.Ordinal)) address = address[..^5];
+            return address;
+        }
+    }
+
+    /// <summary>Nhan kieu ket noi hien tren badge: USB / USB <may khac> / Wireless / Wireless <may khac>.</summary>
+    public string ConnectionLabel => State switch
+    {
+        "discovered" => "Chưa nối",
+        "unauthorized" => "Chờ Allow",
+        "offline" => "Offline",
+        _ when IsUsb && IsRemoteSource => $"USB · {SourceLabel}",
+        _ when IsUsb => "USB",
+        _ when IsRemoteSource => $"Wireless · {SourceLabel}",
+        _ => "Wireless",
+    };
+
+    public string ConnectionHint => State is "discovered" or "unauthorized" or "offline"
+        ? "Chưa sẵn sàng"
+        : IsUsb && IsRemoteSource
+            ? $"Đang cắm USB vào {SourceLabel} — mirror chạy qua máy đó (không dùng wireless của điện thoại)."
+            : IsUsb
+                ? "Cắm USB trực tiếp vào máy tính này."
+                : IsRemoteSource
+                    ? $"Wireless qua adb server {SourceLabel}."
+                    : "Wireless debugging của điện thoại (adb qua Wi-Fi).";
+
+    public Brush ConnectionBrush => State is "discovered" or "unauthorized" or "offline"
+        ? new SolidColorBrush(Color.FromRgb(0x5A, 0x63, 0x78))
+        : IsUsb
+            ? new SolidColorBrush(IsRemoteSource ? Color.FromRgb(0x4C, 0x8D, 0xFF) : Color.FromRgb(0x35, 0xC4, 0x6B))
+            : new SolidColorBrush(Color.FromRgb(0xF5, 0xA5, 0x24));
 
     public string StateText => IsMirroring
         ? "Đang mirror"

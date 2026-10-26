@@ -31,6 +31,8 @@ public class MirrorSession
     public int SlotY { get; set; }
     /// <summary>Thu tu cua so trong lan chay nay, dung de lech nhe khi nhieu may cung center.</summary>
     public int CascadeIndex { get; set; }
+    /// <summary>adb server dung cho phien nay (local hoac laptop tu xa).</summary>
+    public AdbService? Source { get; set; }
     public DateTime StartedAt { get; init; } = DateTime.UtcNow;
 }
 
@@ -61,7 +63,7 @@ public class ScrcpyRunner
         get { lock (_gate) return _sessions.ToList(); }
     }
 
-    public async Task StartAsync(DeviceEntry device, MirrorOptions options)
+    public async Task StartAsync(DeviceEntry device, MirrorOptions options, AdbService? source = null)
     {
         if (IsRunning(device.Serial))
         {
@@ -69,6 +71,7 @@ public class ScrcpyRunner
             return;
         }
 
+        var adb = source ?? _adb;
         var scrcpyExe = Path.Combine(_adb.ScrcpyDir, "scrcpy.exe");
         if (!File.Exists(scrcpyExe))
         {
@@ -77,12 +80,12 @@ public class ScrcpyRunner
         }
 
         // Man hinh dang dozing thi scrcpy chi thay khung den
-        await _adb.WakeAsync(device.Serial);
+        await adb.WakeAsync(device.Serial);
 
         // Kich thuoc native theo huong hien tai: truyen thang de scrcpy khong scale cho vua man hinh PC
         var nativeWidth = 0;
         var nativeHeight = 0;
-        var sizeText = await _adb.GetScreenSizeAsync(device.Serial);
+        var sizeText = await adb.GetScreenSizeAsync(device.Serial);
         var portrait = false;
         if (TryParseSize(sizeText, out var width, out var height))
         {
@@ -119,10 +122,10 @@ public class ScrcpyRunner
         if (!string.IsNullOrWhiteSpace(options.BitRate)) args.Add($"--video-bit-rate={options.BitRate}");
 
         // adb server tu xa (vd laptop cam may USB): video di qua tunnel TCP cua laptop
-        if (_adb.IsRemote)
+        if (adb.IsRemote)
         {
-            args.Add($"--tunnel-host={AdbService.ServerHostOf(_adb.ServerAddress)}");
-            _log($"[{device.Title}] adb server từ xa: {_adb.ServerAddress}");
+            args.Add($"--tunnel-host={AdbService.ServerHostOf(adb.ServerAddress)}");
+            _log($"[{device.Title}] adb server từ xa: {adb.ServerAddress}");
         }
 
         switch (options.Audio)
@@ -146,9 +149,9 @@ public class ScrcpyRunner
             WorkingDirectory = _adb.ScrcpyDir,
         };
 
-        if (_adb.IsRemote)
+        if (adb.IsRemote)
         {
-            psi.Environment["ADB_SERVER_SOCKET"] = "tcp:" + AdbService.NormalizeServer(_adb.ServerAddress);
+            psi.Environment["ADB_SERVER_SOCKET"] = "tcp:" + AdbService.NormalizeServer(adb.ServerAddress);
         }
 
         var process = new Process { StartInfo = psi };
@@ -174,6 +177,7 @@ public class ScrcpyRunner
             Process = process,
             WindowTitle = title,
             CascadeIndex = Sessions.Count,
+            Source = adb,
         };
 
         lock (_gate) _sessions.Add(session);
@@ -249,7 +253,7 @@ public class ScrcpyRunner
             if ((DateTime.UtcNow - lastWake).TotalSeconds > 15)
             {
                 lastWake = DateTime.UtcNow;
-                _ = _adb.WakeAsync(session.Device.Serial);
+                _ = (session.Source ?? _adb).WakeAsync(session.Device.Serial);
             }
             var windows = WindowTools.FindScrcpyWindows(session.Process.Id);
             if (windows.Count > 0)

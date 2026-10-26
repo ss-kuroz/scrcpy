@@ -32,6 +32,14 @@ Có nút **Đổi thư mục** nếu muốn trỏ tay.
 
 - Tự quét `adb devices -l` + `adb mdns services` mỗi 2.5 s.
 - Gộp các transport của cùng một máy (USB / `ip:port` / mDNS) theo hardware id — không bị trùng.
+- **Nhãn kiểu kết nối** ngay cạnh tên máy (rê chuột để xem tooltip):
+  - `USB` (xanh lá) — cắm USB trực tiếp vào máy tính này.
+  - `USB · 192.168.0.50` (xanh dương) — đang cắm vào laptop trong LAN; mirror chạy qua laptop,
+    **không dùng wireless của điện thoại**.
+  - `Wireless` (vàng) — wireless debugging của điện thoại tới máy này.
+  - `Wireless · 192.168.0.50` — wireless qua adb server của máy khác.
+- Cùng một máy xuất hiện ở nhiều nơi → chọn đường tốt nhất:
+  **USB máy này → USB máy khác → Wireless máy này → Wireless máy khác**.
 - **USB**: cắm dây → hiện ngay. Lần đầu máy sẽ hỏi *Allow USB debugging*, bấm Allow trên điện thoại;
   trước đó trạng thái là “Chưa cho phép”.
 - **Wireless**: bật Wireless debugging + “Pair device with pairing code” trên điện thoại → bấm **Pair…**,
@@ -65,9 +73,11 @@ New-NetFirewallRule -DisplayName "adb 5037" -Direction Inbound -Protocol TCP -Lo
 Lấy IP laptop bằng `ipconfig`, rồi trên PC:
 
 - Nhập IP laptop vào ô **ADB laptop** (vd `192.168.0.50`) → bấm **ADB laptop**.
-- App đặt `ADB_SERVER_SOCKET=tcp:<ip>:5037` cho mọi lệnh adb và thêm
-  `--tunnel-host=<ip>` cho scrcpy → video đi qua tunnel TCP của laptop.
-- Để trống rồi bấm lại = quay về adb trên máy này.
+- App **thêm** laptop thành nguồn thứ hai (không thay adb trên máy này): danh sách gộp cả hai,
+  máy cắm ở laptop có nhãn `USB · 192.168.0.50`.
+- Máy nào chỉ tìm thấy ở laptop thì mirror tự chạy qua laptop
+  (`ADB_SERVER_SOCKET=tcp:<ip>:5037` cho adb + `--tunnel-host=<ip>` cho scrcpy).
+- Để trống rồi bấm lại = bỏ nguồn laptop.
 
 Dùng CLI trực tiếp cũng được:
 
