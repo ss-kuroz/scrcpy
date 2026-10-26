@@ -118,6 +118,13 @@ public class ScrcpyRunner
         if (options.MaxFps > 0) args.Add($"--max-fps={options.MaxFps}");
         if (!string.IsNullOrWhiteSpace(options.BitRate)) args.Add($"--video-bit-rate={options.BitRate}");
 
+        // adb server tu xa (vd laptop cam may USB): video di qua tunnel TCP cua laptop
+        if (_adb.IsRemote)
+        {
+            args.Add($"--tunnel-host={AdbService.ServerHostOf(_adb.ServerAddress)}");
+            _log($"[{device.Title}] adb server từ xa: {_adb.ServerAddress}");
+        }
+
         switch (options.Audio)
         {
             case AudioMode.Off:
@@ -138,6 +145,11 @@ public class ScrcpyRunner
             RedirectStandardError = true,
             WorkingDirectory = _adb.ScrcpyDir,
         };
+
+        if (_adb.IsRemote)
+        {
+            psi.Environment["ADB_SERVER_SOCKET"] = "tcp:" + AdbService.NormalizeServer(_adb.ServerAddress);
+        }
 
         var process = new Process { StartInfo = psi };
         process.OutputDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) _log($"[{device.Title}] {e.Data}"); };

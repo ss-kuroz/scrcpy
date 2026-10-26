@@ -21,6 +21,7 @@ public partial class MainWindow : Window
     private bool _refreshing;
     private DateTime? _emptySince;
     private DateTime _lastServerRestart = DateTime.MinValue;
+    private bool _remoteWarned;
 
     public MainWindow()
     {
@@ -28,6 +29,7 @@ public partial class MainWindow : Window
 
         _settings = AppSettings.Load();
         _adb.ScrcpyDir = _settings.ScrcpyDir;
+        _adb.ServerAddress = _settings.AdbServerHost;
         _runner = new ScrcpyRunner(_adb, AppendLog);
 
         DevicesList.ItemsSource = _devices;
@@ -69,6 +71,7 @@ public partial class MainWindow : Window
         BitRateBox.Text = _settings.BitRate;
         ChkControl.IsChecked = _settings.AllowControl;
         ChkAutoConnect.IsChecked = _settings.AutoConnectWireless;
+        RemoteAdbBox.Text = _settings.AdbServerHost;
         PathText.Text = _adb.ScrcpyDir;
 
         switch (_settings.MaxFps)
@@ -101,6 +104,7 @@ public partial class MainWindow : Window
         };
         _settings.AllowControl = ChkControl.IsChecked == true;
         _settings.AutoConnectWireless = ChkAutoConnect.IsChecked == true;
+        _settings.AdbServerHost = _adb.ServerAddress;
     }
 
     private int SelectedFps()
@@ -137,6 +141,21 @@ public partial class MainWindow : Window
             var rawDevices = await _adb.GetDevicesAsync();
             var mdns = await _adb.GetMdnsServicesAsync();
 
+            // adb server tu xa chet / laptop chua chay server -> bao ro mot lan
+            if (_adb.IsRemote && rawDevices.Count == 0)
+            {
+                if (!_remoteWarned)
+                {
+                    _remoteWarned = true;
+                    var probe = await _adb.RunAsync("devices", 5000);
+                    AppendLog($"Không thấy thiết bị từ adb server {_adb.ServerAddress}: {probe.Combined}");
+                }
+            }
+            else
+            {
+                _remoteWarned = false;
+            }
+
             // Mot may co the hien thi thanh nhieu transport (USB / ip:port / mDNS) -> gop theo hardware id
             var devices = rawDevices
                 .GroupBy(d => string.IsNullOrEmpty(d.HardwareId) ? d.Serial : d.HardwareId)
@@ -168,7 +187,9 @@ public partial class MainWindow : Window
 
             // Nho dia chi wireless da ket noi (de connect lai khi mdns khong quang ba)
             var remembered = false;
-            foreach (var raw in rawDevices.Where(d => d.State == "device" && d.Serial.Contains(':')))
+            foreach (var raw in _adb.IsRemote
+                         ? Enumerable.Empty<AdbDevice>()
+                         : rawDevices.Where(d => d.State == "device" && d.Serial.Contains(':')))
             {
                 if (_settings.KnownAddresses.Contains(raw.Serial, StringComparer.OrdinalIgnoreCase)) continue;
                 _settings.KnownAddresses.Add(raw.Serial);
@@ -177,7 +198,7 @@ public partial class MainWindow : Window
             if (remembered) _settings.Save();
 
             var candidates = mdns.Where(s => s.IsConnect).Select(s => s.Address)
-                                 .Concat(_settings.KnownAddresses)
+                                 .Concat(_adb.IsRemote ? Enumerable.Empty<string>() : _settings.KnownAddresses)
                                  .Distinct(StringComparer.OrdinalIgnoreCase)
                                  .ToList();
 
@@ -185,7 +206,7 @@ public partial class MainWindow : Window
             // Chi restart khi khong mirror de khong cat phien dang chay.
             var noSignal = rawDevices.Count == 0 && mdns.Count == 0;
             var staleReachable = false;
-            if (_runner.Sessions.Count == 0)
+            if (!_adb.IsRemote && _runner.Sessions.Count == 0)
             {
                 foreach (var address in _settings.KnownAddresses)
                 {
@@ -197,7 +218,7 @@ public partial class MainWindow : Window
                 }
             }
 
-            if (_runner.Sessions.Count == 0 && (staleReachable || noSignal))
+            if (!_adb.IsRemote && _runner.Sessions.Count == 0 && (staleReachable || noSignal))
             {
                 _emptySince ??= DateTime.UtcNow;
                 var waited = (DateTime.UtcNow - _emptySince.Value).TotalSeconds;
@@ -258,7 +279,7 @@ public partial class MainWindow : Window
             foreach (var entry in _devices.ToList())
             {
                 if (entry.IsMirroring) continue;
-                if (_settings.KnownAddresses.Contains(entry.Serial, StringComparer.OrdinalIgnoreCase)) continue;
+                if (!_adb.IsRemote && _settings.KnownAddresses.Contains(entry.Serial, StringComparer.OrdinalIgnoreCase)) continue;
                 var alive = entry.IsAdbDevice
                     ? liveSerials.Contains(entry.Serial)
                     : candidates.Contains(entry.Serial, StringComparer.OrdinalIgnoreCase);
@@ -268,7 +289,9 @@ public partial class MainWindow : Window
             var ready = devices.Count(d => d.State == "device");
             var pairing = mdns.Count(s => s.IsPairing);
             SubtitleText.Text = $"{ready} thiết bị sẵn sàng  •  {devices.Count} kết nối adb  •  {pairing} dịch vụ pairing";
-            StatusText.Text = _adb.ScrcpyDir;
+            StatusText.Text = _adb.IsRemote
+                ? $"{_adb.ScrcpyDir}  •  adb từ xa: {_adb.ServerAddress}"
+                : _adb.ScrcpyDir;
 
             if (DevicesList.SelectedItem == null && _devices.Count > 0) DevicesList.SelectedIndex = 0;
 
@@ -393,6 +416,32 @@ public partial class MainWindow : Window
 
     private void ArrangeBtn_Click(object sender, RoutedEventArgs e) => _runner.Arrange();
 
+    private async void RemoteAdbBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var address = RemoteAdbBox.Text.Trim();
+        var previous = _adb.ServerAddress;
+
+        _adb.ServerAddress = address;
+        _settings.AdbServerHost = address;
+        _settings.Save();
+
+        if (address.Length == 0)
+        {
+            AppendLog("ADB server: dùng adb trên máy này");
+        }
+        else
+        {
+            AppendLog($"ADB server từ xa: {AdbService.NormalizeServer(address)} — mọi lệnh adb/scrcpy đi qua máy đó");
+        }
+
+        if (!string.Equals(previous, address, StringComparison.OrdinalIgnoreCase) && _runner.Sessions.Count == 0)
+        {
+            _devices.Clear();
+        }
+
+        await RefreshAsync();
+    }
+
     private async void ConnectBtn_Click(object sender, RoutedEventArgs e)
     {
         var device = Selected;
@@ -425,6 +474,7 @@ public partial class MainWindow : Window
 
     private void RememberAddress(string address)
     {
+        if (_adb.IsRemote) return;
         if (string.IsNullOrWhiteSpace(address) || !address.Contains(':')) return;
         if (_settings.KnownAddresses.Contains(address, StringComparer.OrdinalIgnoreCase)) return;
         _settings.KnownAddresses.Add(address);

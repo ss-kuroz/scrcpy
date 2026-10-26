@@ -12,6 +12,9 @@ public class AppSettings
     public bool AutoConnectWireless { get; set; } = true;
     public bool AllowControl { get; set; } = false;
 
+    /// <summary>adb server tu xa (ip hoac ip:port), vd laptop dang cam may qua USB. Rong = adb local.</summary>
+    public string AdbServerHost { get; set; } = "";
+
     /// <summary>Dia chi wireless da tung ket noi (ip:port), de connect lai khi mdns khong quang ba.</summary>
     public List<string> KnownAddresses { get; set; } = new();
 

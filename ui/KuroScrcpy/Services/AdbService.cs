@@ -31,6 +31,27 @@ public class AdbService
     public string ScrcpyDir { get; set; } = "";
     public string AdbPath => Path.Combine(ScrcpyDir, "adb.exe");
 
+    /// <summary>adb server tu xa ("ip" hoac "ip:port"). Rong = adb local.</summary>
+    public string ServerAddress { get; set; } = "";
+
+    public bool IsRemote => !string.IsNullOrWhiteSpace(ServerAddress);
+
+    /// <summary>"ip" -> "ip:5037".</summary>
+    public static string NormalizeServer(string address)
+    {
+        address = address.Trim();
+        if (address.Length == 0) return address;
+        return address.Contains(':') ? address : address + ":5037";
+    }
+
+    /// <summary>Chi phan host (cho --tunnel-host cua scrcpy).</summary>
+    public static string ServerHostOf(string address)
+    {
+        var normalized = NormalizeServer(address);
+        var idx = normalized.IndexOf(':');
+        return idx < 0 ? normalized : normalized[..idx];
+    }
+
     public bool IsReady => File.Exists(AdbPath);
 
     public async Task<AdbResult> RunAsync(string arguments, int timeoutMs = 20000)
@@ -48,6 +69,11 @@ public class AdbService
             RedirectStandardError = true,
             WorkingDirectory = ScrcpyDir,
         };
+
+        if (IsRemote)
+        {
+            psi.Environment["ADB_SERVER_SOCKET"] = "tcp:" + NormalizeServer(ServerAddress);
+        }
 
         using var process = new Process { StartInfo = psi };
         var stdout = new StringBuilder();

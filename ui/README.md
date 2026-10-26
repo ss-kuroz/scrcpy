@@ -44,6 +44,46 @@ Có nút **Đổi thư mục** nếu muốn trỏ tay.
   không nhận, app `adb kill-server` + `start-server` để quét lại mDNS (không làm khi đang mirror).
 - Nút **Làm mới** để quét lại ngay.
 
+### Mirror qua laptop (ADB server từ xa)
+
+Điện thoại cắm USB vào **laptop**, PC khác lấy hình qua mạng TCP/IP của laptop
+(không cần bật wireless debugging trên máy).
+
+Trên laptop (dùng `adb.exe` trong `dist/`):
+
+```powershell
+.\adb.exe kill-server
+.\adb.exe -a nodaemon server start      # giữ cửa sổ này mở
+```
+
+Mở firewall TCP 5037 nếu Windows hỏi, hoặc:
+
+```powershell
+New-NetFirewallRule -DisplayName "adb 5037" -Direction Inbound -Protocol TCP -LocalPort 5037 -Action Allow
+```
+
+Lấy IP laptop bằng `ipconfig`, rồi trên PC:
+
+- Nhập IP laptop vào ô **ADB laptop** (vd `192.168.0.50`) → bấm **ADB laptop**.
+- App đặt `ADB_SERVER_SOCKET=tcp:<ip>:5037` cho mọi lệnh adb và thêm
+  `--tunnel-host=<ip>` cho scrcpy → video đi qua tunnel TCP của laptop.
+- Để trống rồi bấm lại = quay về adb trên máy này.
+
+Dùng CLI trực tiếp cũng được:
+
+```powershell
+$env:ADB_SERVER_SOCKET = 'tcp:192.168.0.50:5037'
+dist\scrcpy.exe --tunnel-host=192.168.0.50
+```
+
+Lưu ý: adb server **không mã hoá, không xác thực** — ai trong LAN cũng điều khiển được máy.
+Chỉ dùng trong LAN tin cậy, hoặc dùng IP Tailscale, hoặc SSH tunnel:
+
+```powershell
+ssh -CN -L5038:localhost:5037 -L27183:localhost:27183 user@laptop
+# rồi nhập 127.0.0.1:5038 vào ô ADB laptop
+```
+
 ### Mirror
 
 - Chọn thiết bị → **Bắt đầu mirror**. Mỗi máy một cửa sổ scrcpy riêng, nhiều máy chạy song song.
