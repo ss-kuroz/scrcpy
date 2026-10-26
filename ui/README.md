@@ -8,8 +8,8 @@ mirror nhiều máy cùng lúc và **khoá cửa sổ đúng resolution gốc c�
 ## Tải bản build
 
 Bản build sẵn cho Windows x64 (không cần cài .NET):
-**[Releases › kuro-v1.0.0](https://github.com/ss-kuroz/scrcpy/releases/tag/kuro-v1.0.0)**
-→ tải `KuroScrcpy-1.0.0-win-x64.zip`, giải nén, chạy `KuroScrcpy.exe` (đã kèm sẵn `dist/`).
+**[Releases › kuro-v1.1.0](https://github.com/ss-kuroz/scrcpy/releases/tag/kuro-v1.1.0)**
+→ tải `KuroScrcpy-1.1.0-win-x64.zip`, giải nén, chạy `KuroScrcpy.exe` (đã kèm sẵn `dist/`).
 
 ## Chạy từ source
 
