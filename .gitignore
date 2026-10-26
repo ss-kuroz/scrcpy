@@ -2,6 +2,8 @@ build/
 /dist/
 # Kuro Windows bundle (release binaries + launcher scripts) — see dist/README.md
 !/dist/
+# Scratch temp (adb server log, test artifacts)
+/.temp/
 /build-*/
 /build_*/
 /release-*/
