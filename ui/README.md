@@ -41,8 +41,7 @@ Có nút **Đổi thư mục** nếu muốn trỏ tay.
   scale cho vừa màn hình PC.
 - **Khoá cửa sổ**: bỏ `WS_THICKFRAME` + `WS_MAXIMIZEBOX`, ép client area đúng resolution gốc,
   `--render-fit=unscaled`. Không kéo viền, không maximize, không snap được.
-- **Xếp lại cửa sổ**: tự xếp lưới theo thứ tự bắt đầu (stack dọc khi 2 cửa sổ không vừa ngang).
-- **Bắt đầu/Dừng/Dừng tất cả** theo từng thiết bị.
+- **Xếp lại cửa sổ**: tự xếp lưới theo thứ tự bắt đầu (stack dọc khi 2 cửa sổ không vừa ngang).- **Bắt đầu/Dừng/Dừng tất cả** theo từng thiết bị.
 
 ### Tuỳ chọn
 
@@ -72,8 +71,8 @@ ui/KuroScrcpy/
 
 - Windows SmartScreen có thể cảnh báo exe chưa ký → **More info → Run anyway**.
 - App chạy scrcpy với `CreateNoWindow` nên không có cửa sổ console; log scrcpy hiện trong panel **NHẬT KÝ**.
-- Cửa sổ scrcpy được đặt theo góc client, nên với `0,0` titlebar nằm ngoài màn hình (giống script cũ);
-  kéo cửa sổ để thấy titlebar.
+- Cửa sổ mirror **xuất hiện ở giữa màn hình** (máy thứ 2, 3… lệch 36 px để không chồng khít).
+  Bấm **Xếp lại cửa sổ** nếu muốn tile sát nhau; app không tự dời cửa sổ sau đó.
 - Hai máy cùng bật “Cả hai” sẽ phát audio chung một output device của Windows.
 - Resolution được chốt khi bắt đầu mirror; nếu điện thoại tự xoay giữa chừng, bấm Dừng → Bắt đầu lại.
 - Wi-Fi có thể tụt frame (xem `dist/README.md`); USB ổn định hơn cho 60 fps.

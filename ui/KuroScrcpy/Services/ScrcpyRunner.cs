@@ -30,6 +30,8 @@ public class MirrorSession
     public bool HasTarget { get; set; }
     public int SlotX { get; set; }
     public int SlotY { get; set; }
+    /// <summary>Thu tu cua so trong lan chay nay, dung de lech nhe khi nhieu may cung center.</summary>
+    public int CascadeIndex { get; set; }
     public DateTime StartedAt { get; init; } = DateTime.UtcNow;
 }
 
@@ -81,6 +83,9 @@ public class ScrcpyRunner
             _log($"[{device.Title}] khoá landscape: {rotation.Combined}");
         }
 
+        // Man hinh dang dozing thi scrcpy chi thay khung den
+        await _adb.WakeAsync(device.Serial);
+
         // Kich thuoc native theo huong hien tai: truyen thang de scrcpy khong scale cho vua man hinh PC
         var nativeWidth = 0;
         var nativeHeight = 0;
@@ -98,8 +103,6 @@ public class ScrcpyRunner
             "-s", Quote(device.Serial),
             "--render-fit=unscaled",
             $"--window-title={Quote(title)}",
-            "--window-x=0",
-            "--window-y=0",
         };
 
         if (nativeWidth > 0 && nativeHeight > 0)
@@ -155,6 +158,7 @@ public class ScrcpyRunner
             Device = device,
             Process = process,
             WindowTitle = title,
+            CascadeIndex = Sessions.Count,
         };
 
         lock (_gate) _sessions.Add(session);
@@ -222,9 +226,16 @@ public class ScrcpyRunner
         var lastWidth = 0;
         var lastHeight = 0;
         var stableSince = DateTime.UtcNow;
+        var lastWake = DateTime.UtcNow;
 
         while (!session.Process.HasExited)
         {
+            // Giu man hinh dien thoai thuc (neu khong se dozing -> mirror den)
+            if ((DateTime.UtcNow - lastWake).TotalSeconds > 15)
+            {
+                lastWake = DateTime.UtcNow;
+                _ = _adb.WakeAsync(session.Device.Serial);
+            }
             var windows = WindowTools.FindScrcpyWindows(session.Process.Id);
             if (windows.Count > 0)
             {
@@ -248,7 +259,7 @@ public class ScrcpyRunner
                             session.TargetHeight = height;
                             session.HasTarget = true;
                             _log($"[{session.Device.Title}] cửa sổ gốc {width}×{height}");
-                            Arrange();
+                            PlaceCentered(session, hwnd);
                         }
                     }
                 }
@@ -273,7 +284,28 @@ public class ScrcpyRunner
         _log($"[{session.Device.Title}] {reason}");
         SessionEnded?.Invoke(session.Device.Serial);
         LayoutChanged?.Invoke();
-        Arrange();
+    }
+
+    /// <summary>Dat nguyen cua so (ke ca titlebar) o giua work area; nhieu may lech nhau 36px.</summary>
+    private void PlaceCentered(MirrorSession session, IntPtr hwnd)
+    {
+        var area = WindowTools.GetWorkArea();
+        var (windowWidth, windowHeight) = WindowTools.GetWindowSize(hwnd);
+        if (windowWidth <= 0 || windowHeight <= 0) return;
+
+        var offset = Math.Max(0, session.CascadeIndex) * 36;
+        var maxX = Math.Max(area.Left, area.Right - windowWidth);
+        var maxY = Math.Max(area.Top, area.Bottom - windowHeight);
+
+        var x = area.Left + (area.Width - windowWidth) / 2 + offset;
+        var y = area.Top + (area.Height - windowHeight) / 2 + offset;
+
+        x = Math.Clamp(x, area.Left, maxX);
+        y = Math.Clamp(y, area.Top, maxY);
+
+        session.SlotX = x;
+        session.SlotY = y;
+        WindowTools.MoveWindowTo(hwnd, x, y);
     }
 
     private static int SafeExitCode(Process process)

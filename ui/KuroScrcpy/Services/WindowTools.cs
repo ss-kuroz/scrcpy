@@ -115,6 +115,22 @@ public static class WindowTools
         return (rect.Width, rect.Height);
     }
 
+    /// <summary>Kich thuoc ca cua so (gom titlebar + border).</summary>
+    public static (int Width, int Height) GetWindowSize(IntPtr hWnd)
+    {
+        GetWindowRect(hWnd, out var rect);
+        return (rect.Width, rect.Height);
+    }
+
+    /// <summary>Di chuyen nguyen cua so (outer) den (x, y), giu nguyen kich thuoc.</summary>
+    public static void MoveWindowTo(IntPtr hWnd, int x, int y)
+    {
+        if (hWnd == IntPtr.Zero) return;
+        GetWindowRect(hWnd, out var rect);
+        if (rect.Left == x && rect.Top == y) return;
+        SetWindowPos(hWnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+
     public static (int X, int Y) GetClientOrigin(IntPtr hWnd)
     {
         var point = new POINT { X = 0, Y = 0 };
