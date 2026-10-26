@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     private readonly AdbDaemon _daemon;
     private readonly Dictionary<string, DateTime> _lastConnectAttempt = new(StringComparer.OrdinalIgnoreCase);
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> _connectFailed = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _unauthorizedWarned = new(StringComparer.OrdinalIgnoreCase);
     private bool _refreshing;
     private DateTime? _emptySince;
     private DateTime _lastServerRestart = DateTime.MinValue;
@@ -256,6 +257,16 @@ public partial class MainWindow : Window
                 if (!string.IsNullOrWhiteSpace(device.Model)) entry.Model = device.Model;
                 entry.State = device.State;
 
+                if (entry.State == "unauthorized" && _unauthorizedWarned.Add(entry.Serial))
+                {
+                    AppendLog($"[{entry.Title}] chưa cho phép USB — mở khoá điện thoại và bấm Allow. " +
+                              "Không thấy hộp thoại: Tùy chọn nhà phát triển → Thu hồi quyền gỡ lỗi USB → cắm lại cáp.");
+                }
+                else if (entry.State == "device")
+                {
+                    _unauthorizedWarned.Remove(entry.Serial);
+                }
+
                 if (entry.State == "device" && string.IsNullOrEmpty(entry.Resolution))
                 {
                     _ = LoadResolutionAsync(entry, SourceFor(entry));
@@ -438,7 +449,7 @@ public partial class MainWindow : Window
     private void UpdateButtons()
     {
         var selected = Selected;
-        ConnectBtn.IsEnabled = selected is { State: "discovered" or "offline" };
+        ConnectBtn.IsEnabled = selected is { State: "discovered" or "offline" or "unauthorized" };
         DisconnectBtn.IsEnabled = selected is { IsWireless: true, State: "device" };
         StartBtn.IsEnabled = selected is { CanStart: true };
         StopBtn.IsEnabled = selected is { IsMirroring: true };
@@ -708,8 +719,21 @@ public partial class MainWindow : Window
     {
         var device = Selected;
         if (device == null) return;
-        var address = string.IsNullOrWhiteSpace(device.Address) ? device.Serial : device.Address;
         var source = SourceFor(device);
+
+        // USB chua authorize: reconnect de adb hoi lai quyen tren dien thoai
+        if (device.State == "unauthorized")
+        {
+            AppendLog($"[{device.Title}] yêu cầu lại quyền gỡ lỗi USB…");
+            var retry = await source.RunAsync($"-s \"{device.Serial}\" reconnect", 12000);
+            AppendLog("reconnect: " + retry.Combined);
+            AppendLog("Mở khoá điện thoại, bấm Allow (tick \"Luôn cho phép\"). " +
+                      "Không thấy hộp thoại: Tùy chọn nhà phát triển → Thu hồi quyền gỡ lỗi USB → cắm lại cáp.");
+            await RefreshAsync();
+            return;
+        }
+
+        var address = string.IsNullOrWhiteSpace(device.Address) ? device.Serial : device.Address;
         AppendLog($"adb connect {address}…");
         var result = await source.ConnectAsync(address);
         AppendLog($"connect {address}: {result.Combined}");

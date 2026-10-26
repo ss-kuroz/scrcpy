@@ -64,7 +64,7 @@
                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListView.ItemTemplate>
               <DataTemplate>
-                <Grid AutomationProperties.Name="{Binding Subtitle}">
+                <Grid AutomationProperties.Name="{Binding Subtitle}" ToolTip="{Binding Subtitle}">
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>

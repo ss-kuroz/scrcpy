@@ -138,7 +138,7 @@ public class DeviceEntry : INotifyPropertyChanged
         : State switch
         {
             "device" => "Sẵn sàng",
-            "unauthorized" => "Chưa cho phép — bấm Allow trên điện thoại",
+            "unauthorized" => "Chưa cho phép — mở khoá máy, bấm Allow (hoặc Thu hồi quyền gỡ lỗi USB)",
             "offline" => "Offline",
             "discovered" => "Chưa kết nối — bấm Connect",
             "pairing" => "Đang mở pairing",
