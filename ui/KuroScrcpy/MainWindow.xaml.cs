@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using KuroScrcpy.Models;
 using KuroScrcpy.Services;
@@ -17,12 +18,17 @@ public partial class MainWindow : Window
     private readonly ScrcpyRunner _runner;
     private readonly ObservableCollection<DeviceEntry> _devices = new();
     private readonly DispatcherTimer _timer;
+    private readonly DispatcherTimer _lanTimer;
+    private readonly AdbDaemon _daemon;
     private readonly Dictionary<string, DateTime> _lastConnectAttempt = new(StringComparer.OrdinalIgnoreCase);
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> _connectFailed = new(StringComparer.OrdinalIgnoreCase);
     private bool _refreshing;
     private DateTime? _emptySince;
     private DateTime _lastServerRestart = DateTime.MinValue;
     private bool _remoteWarned;
+    private bool _scanning;
+    private bool _sharing;
+    private string _daemonInfo = "";
 
     public MainWindow()
     {
@@ -39,6 +45,7 @@ public partial class MainWindow : Window
             };
         }
         _runner = new ScrcpyRunner(_adb, AppendLog);
+        _daemon = new AdbDaemon(_adb);
 
         DevicesList.ItemsSource = _devices;
         ApplySettingsToUi();
@@ -53,11 +60,19 @@ public partial class MainWindow : Window
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
         _timer.Tick += async (_, _) => await RefreshAsync();
 
+        _lanTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(90) };
+        _lanTimer.Tick += async (_, _) => await ScanLanAsync();
+
         Loaded += async (_, _) =>
         {
             AppendLog($"scrcpy dir: {_adb.ScrcpyDir}");
+            _sharing = await DetectSharingAsync();
+            UpdateDaemonUi();
+            ShowLanServers(Array.Empty<string>());
             await RefreshAsync();
             _timer.Start();
+            _lanTimer.Start();
+            _ = ScanLanAsync();
         };
 
         SourceInitialized += (_, _) => UseDarkTitleBar();
@@ -67,6 +82,7 @@ public partial class MainWindow : Window
             SaveUiToSettings();
             _settings.Save();
             _runner.StopAll();
+            _daemon.Dispose();
         };
     }
 
@@ -356,9 +372,9 @@ public partial class MainWindow : Window
             var usbCount = chosen.Count(x => IsUsbSerial(x.Device.Serial));
             var pairing = mdns.Count(s => s.IsPairing);
             SubtitleText.Text = $"{ready} thiết bị sẵn sàng ({usbCount} USB)  •  {chosen.Count} kết nối adb  •  {pairing} dịch vụ pairing";
-            StatusText.Text = _remote != null
+            StatusText.Text = (_remote != null
                 ? $"{_adb.ScrcpyDir}  •  adb: máy này + {_remote.ServerAddress}"
-                : _adb.ScrcpyDir;
+                : _adb.ScrcpyDir) + _daemonInfo;
 
             if (DevicesList.SelectedItem == null && _devices.Count > 0) DevicesList.SelectedIndex = 0;
 
@@ -486,9 +502,12 @@ public partial class MainWindow : Window
 
     private void ArrangeBtn_Click(object sender, RoutedEventArgs e) => _runner.Arrange();
 
-    private async void RemoteAdbBtn_Click(object sender, RoutedEventArgs e)
+    private async void RemoteAdbBtn_Click(object sender, RoutedEventArgs e) =>
+        await ApplyRemoteSourceAsync(RemoteAdbBox.Text.Trim());
+
+    /// <summary>Dat (hoac bo) nguon adb server tu xa. Rong = chi dung adb cua may nay.</summary>
+    private async Task ApplyRemoteSourceAsync(string address)
     {
-        var address = RemoteAdbBox.Text.Trim();
         _settings.AdbServerHost = address;
         _settings.Save();
         _remoteWarned = false;
@@ -509,6 +528,180 @@ public partial class MainWindow : Window
         }
 
         await RefreshAsync();
+    }
+
+    /// <summary>Bat/tat daemon chia se adb cua may nay cho LAN (adb -a nodaemon server start).</summary>
+    private async void DaemonBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_runner.Sessions.Count > 0)
+        {
+            AppendLog("Dừng mirror trước khi bật/tắt chia sẻ (adb server sẽ khởi động lại).");
+            return;
+        }
+
+        _refreshing = true;
+        DaemonBtn.IsEnabled = false;
+        try
+        {
+            if (Sharing)
+            {
+                await _daemon.StopAsync();
+                _sharing = false;
+                AppendLog("Chia sẻ: đã tắt");
+            }
+            else
+            {
+                AppendLog("Chia sẻ: đang mở adb server trên 0.0.0.0:5037…");
+                _sharing = await _daemon.StartAsync();
+                if (_sharing)
+                {
+                    var ips = LanScan.ShareIPv4Addresses();
+                    AppendLog("Chia sẻ: đang mở — " + string.Join(", ", ips.Select(ip => ip + ":5037")));
+                    AppendLog("Máy khác không thấy thì mở firewall (PowerShell admin): " +
+                              "New-NetFirewallRule -DisplayName \"KuroScrcpy adb 5037\" -Direction Inbound " +
+                              "-Protocol TCP -LocalPort 5037 -Action Allow");
+                }
+                else
+                {
+                    AppendLog("Chia sẻ: lỗi — " + _daemon.LastError);
+                }
+            }
+        }
+        finally
+        {
+            DaemonBtn.IsEnabled = true;
+            _refreshing = false;
+            UpdateDaemonUi();
+        }
+
+        await RefreshAsync();
+    }
+
+    private void UpdateDaemonUi()
+    {
+        var running = Sharing;
+        DaemonBtn.Content = running ? "Đang chia sẻ ✓" : "Chia sẻ máy này";
+        DaemonBtn.Foreground = (Brush)FindResource(running ? "Ok" : "Text");
+
+        if (running)
+        {
+            var ips = LanScan.ShareIPv4Addresses();
+            var all = ips.Count == 0 ? "0.0.0.0:5037" : string.Join(", ", ips.Select(ip => ip + ":5037"));
+            DaemonBtn.ToolTip = $"adb server đang mở cho LAN: {all}";
+            _daemonInfo = ips.Count == 0 ? "  •  chia sẻ: 0.0.0.0:5037" : $"  •  chia sẻ: {ips[0]}:5037";
+        }
+        else
+        {
+            DaemonBtn.ToolTip = "Mở adb server trên 0.0.0.0:5037 để máy khác trong LAN mirror qua máy này";
+            _daemonInfo = "";
+        }
+    }
+
+    // ---------- LAN discovery ----------
+
+    /// <summary>Dang chia se khi daemon cua app chay, hoac mot adb server khac da mo tren 0.0.0.0:5037.</summary>
+    private bool Sharing => _daemon.IsRunning || _sharing;
+
+    /// <summary>Mo phong: hoi adb handshake qua IP LAN — server chi listen 127.0.0.1 se khong tra loi.</summary>
+    private static async Task<bool> DetectSharingAsync()
+    {
+        foreach (var ip in LanScan.LocalIPv4Addresses())
+        {
+            if (await LanScan.IsAdbServerAsync(ip)) return true;
+        }
+        return false;
+    }
+
+    private async void ScanLanBtn_Click(object sender, RoutedEventArgs e) => await ScanLanAsync();
+
+    /// <summary>Quet /24 quanh may de tim adb server dang mo (vd laptop dang cam dien thoai).</summary>
+    private async Task ScanLanAsync()
+    {
+        if (_scanning) return;
+        _scanning = true;
+
+        LanPanel.Children.Clear();
+        LanPanel.Children.Add(new TextBlock
+        {
+            Text = "đang quét…",
+            FontSize = 11.5,
+            Foreground = (Brush)FindResource("Muted"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+
+        try
+        {
+            var self = LanScan.LocalIPv4Addresses();
+            var hosts = LanScan.LocalSubnetHosts().Concat(self).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var found = await Task.Run(() => LanScan.FindAdbServersAsync(hosts));
+            var selfSet = self.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var others = found.Where(ip => !selfSet.Contains(ip)).ToList();
+            ShowLanServers(others, found.Any(selfSet.Contains));
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Quét LAN lỗi: " + ex.Message);
+            ShowLanServers(Array.Empty<string>());
+        }
+        finally
+        {
+            _scanning = false;
+        }
+    }
+
+    private void ShowLanServers(IReadOnlyList<string> servers, bool selfSharing = false)
+    {
+        LanPanel.Children.Clear();
+
+        if (selfSharing)
+        {
+            var selfChip = new Button
+            {
+                Content = "máy này",
+                Style = (Style)FindResource("Btn"),
+                Padding = new Thickness(8, 4, 8, 4),
+                FontSize = 11.5,
+                Margin = new Thickness(0, 2, 6, 2),
+                IsEnabled = false,
+                ToolTip = "Chính máy này đang mở adb server cho LAN",
+            };
+            LanPanel.Children.Add(selfChip);
+        }
+
+        if (servers.Count == 0 && !selfSharing)
+        {
+            LanPanel.Children.Add(new TextBlock
+            {
+                Text = "không thấy",
+                FontSize = 11.5,
+                Foreground = (Brush)FindResource("Muted"),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            return;
+        }
+
+        foreach (var ip in servers)
+        {
+            var chip = new Button
+            {
+                Content = ip,
+                Tag = ip,
+                Style = (Style)FindResource("Btn"),
+                Padding = new Thickness(8, 4, 8, 4),
+                FontSize = 11.5,
+                Margin = new Thickness(0, 2, 6, 2),
+                ToolTip = $"Dùng adb server tại {ip}:5037 (máy đang mở daemon)",
+            };
+            chip.Click += LanChip_Click;
+            LanPanel.Children.Add(chip);
+        }
+    }
+
+    private async void LanChip_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string ip }) return;
+        RemoteAdbBox.Text = ip;
+        await ApplyRemoteSourceAsync(ip);
     }
 
     private async void ConnectBtn_Click(object sender, RoutedEventArgs e)

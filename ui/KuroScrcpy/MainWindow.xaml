@@ -30,6 +30,9 @@
         <TextBlock x:Name="PathText" VerticalAlignment="Center" FontSize="11.5"
                    Foreground="{StaticResource Muted}" MaxWidth="360"
                    TextTrimming="CharacterEllipsis" ToolTip="{Binding RelativeSource={RelativeSource Self}, Path=Text}"/>
+        <Button x:Name="DaemonBtn" Content="Chia sẻ máy này" Style="{StaticResource Btn}" Margin="10,0,0,0"
+                Click="DaemonBtn_Click"
+                ToolTip="Mở adb server trên 0.0.0.0:5037 để máy khác trong LAN mirror qua máy này"/>
         <Button Content="Đổi thư mục" Style="{StaticResource Btn}" Margin="10,0,0,0" Click="BrowseBtn_Click"/>
         <Button Content="Pair…" Style="{StaticResource Btn}" Margin="8,0,0,0" Click="PairBtn_Click"/>
         <Button Content="Làm mới" Style="{StaticResource Btn}" Margin="8,0,0,0" Click="RefreshBtn_Click"/>
@@ -97,9 +100,24 @@
               <RowDefinition Height="Auto"/>
               <RowDefinition Height="Auto"/>
               <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <Grid Grid.Row="0" Margin="0,0,0,8">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Text="ADB trong LAN:" FontSize="11.5"
+                         Foreground="{StaticResource Muted}" VerticalAlignment="Center"/>
+              <WrapPanel x:Name="LanPanel" Grid.Column="1" Margin="8,0,8,0" VerticalAlignment="Center"/>
+              <Button Grid.Column="2" Content="Quét" Style="{StaticResource Btn}" Padding="10,6"
+                      Click="ScanLanBtn_Click"
+                      ToolTip="Quét LAN tìm máy đang mở adb server (TCP 5037)"/>
+            </Grid>
+
+            <Grid Grid.Row="1" Margin="0,0,0,8">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -110,7 +128,7 @@
                       Margin="8,0,0,0" Click="RemoteAdbBtn_Click"/>
             </Grid>
 
-            <Grid Grid.Row="1" Margin="0,0,0,8">
+            <Grid Grid.Row="2" Margin="0,0,0,8">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -121,7 +139,7 @@
                       Margin="8,0,0,0" Click="ManualConnectBtn_Click"/>
             </Grid>
 
-            <Grid Grid.Row="2">
+            <Grid Grid.Row="3">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>

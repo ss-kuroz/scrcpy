@@ -52,32 +52,44 @@ Có nút **Đổi thư mục** nếu muốn trỏ tay.
   không nhận, app `adb kill-server` + `start-server` để quét lại mDNS (không làm khi đang mirror).
 - Nút **Làm mới** để quét lại ngay.
 
+### Chia sẻ máy này cho LAN (daemon)
+
+Máy đang cắm điện thoại USB có thể mở adb server cho máy khác dùng: bấm **Chia sẻ máy này**
+ở góc trên bên phải.
+
+- App chạy `adb -a nodaemon server start` → listen `0.0.0.0:5037`, nút đổi thành **Đang chia sẻ ✓** (xanh).
+- Thanh trạng thái hiện IP cho máy khác nhập, vd `192.168.0.183:5037`.
+- Bấm lại để tắt; đóng app cũng tắt daemon.
+- Lần đầu cần mở firewall (PowerShell **admin**):
+  ```powershell
+  New-NetFirewallRule -DisplayName "KuroScrcpy adb 5037" -Direction Inbound -Protocol TCP -LocalPort 5037 -Action Allow
+  ```
+- Không bật/tắt được khi đang mirror (adb server sẽ khởi động lại, làm rớt phiên).
+
+Nếu app khởi động lại trong lúc daemon vẫn chạy, nó tự nhận ra (hỏi handshake qua IP LAN) và hiện
+**Đang chia sẻ ✓** đúng trạng thái.
+
 ### Mirror qua laptop (ADB server từ xa)
 
 Điện thoại cắm USB vào **laptop**, PC khác lấy hình qua mạng TCP/IP của laptop
 (không cần bật wireless debugging trên máy).
 
-Trên laptop (dùng `adb.exe` trong `dist/`):
+**Trên laptop:** mở app → **Chia sẻ máy này** (hoặc chạy tay `adb -a nodaemon server start`).
 
-```powershell
-.\adb.exe kill-server
-.\adb.exe -a nodaemon server start      # giữ cửa sổ này mở
-```
+**Trên PC:**
 
-Mở firewall TCP 5037 nếu Windows hỏi, hoặc:
-
-```powershell
-New-NetFirewallRule -DisplayName "adb 5037" -Direction Inbound -Protocol TCP -LocalPort 5037 -Action Allow
-```
-
-Lấy IP laptop bằng `ipconfig`, rồi trên PC:
-
-- Nhập IP laptop vào ô **ADB laptop** (vd `192.168.0.50`) → bấm **ADB laptop**.
+- App tự quét LAN mỗi 90 s. Máy đang mở adb server hiện thành **chip IP** ở dòng
+  **ADB trong LAN:** (vd `192.168.0.50`) → bấm chip là dùng ngay, không cần biết IP.
+  Nút **Quét** để quét lại lập tức; chip **máy này** (xám) nghĩa là chính máy đang chia sẻ.
+- Hoặc nhập tay IP laptop vào ô **ADB laptop** (vd `192.168.0.50`) → bấm **ADB laptop**.
 - App **thêm** laptop thành nguồn thứ hai (không thay adb trên máy này): danh sách gộp cả hai,
   máy cắm ở laptop có nhãn `USB · 192.168.0.50`.
 - Máy nào chỉ tìm thấy ở laptop thì mirror tự chạy qua laptop
   (`ADB_SERVER_SOCKET=tcp:<ip>:5037` cho adb + `--tunnel-host=<ip>` cho scrcpy).
 - Để trống rồi bấm lại = bỏ nguồn laptop.
+
+Quét LAN chỉ quét `/24` quanh IP máy, bỏ qua adapter ảo (Hyper-V/WSL/VMware/ZeroTier) và APIPA;
+nhận diện adb server bằng handshake `host:version` nên không nhầm với dịch vụ khác mở port 5037.
 
 Dùng CLI trực tiếp cũng được:
 
