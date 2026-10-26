@@ -1,5 +1,7 @@
 build/
 /dist/
+# Kuro Windows bundle (release binaries + launcher scripts) — see dist/README.md
+!/dist/
 /build-*/
 /build_*/
 /release-*/
