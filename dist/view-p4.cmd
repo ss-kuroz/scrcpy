@@ -7,7 +7,7 @@ REM lock-window.ps1 -Watch: bo vien resize + maximize, ep client = 2362x1080
 cd /d "%~dp0"
 start "" scrcpy.exe -s 192.168.0.213:39409 ^
   --no-control --no-audio ^
-  --max-size=0 --render-fit=unscaled ^
+  --max-size=0 --max-fps=60 --render-fit=unscaled ^
   --window-width=2362 --window-height=1080 ^
   --window-x=0 --window-y=0 ^
   --window-title="RMX5107 view-only 2362x1080"

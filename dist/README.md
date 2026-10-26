@@ -28,7 +28,7 @@ Không patch source scrcpy — mọi thay đổi nằm ở script wrapper trong 
 `view-p4.cmd` / `view-p4b.cmd` chạy:
 
 ```bat
-scrcpy.exe --no-control --no-audio --max-size=0 --render-fit=unscaled ^
+scrcpy.exe --no-control --no-audio --max-size=0 --max-fps=60 --render-fit=unscaled ^
   --window-width=<res_ngang> --window-height=<res_doc> --window-x=0 --window-y=0 ^
   --window-title="<serial> view-only <res>"
 ```
@@ -42,6 +42,19 @@ lock-window.ps1 -Title RMX5107 -Width 2362 -Height 1080 -Watch
 - `--no-control`: không gửi touch/phím về máy → chỉ xem.
 - `--render-fit=unscaled`: không bao giờ zoom ảnh, 1 pixel điện thoại = 1 pixel màn hình.
 - `--max-size=0`: lấy đúng độ phân giải gốc của máy.
+- `--max-fps=60`: cap capture ở 60 fps (máy có thể tự nhảy 90/120/144 Hz, không cap thì
+  scrcpy bám theo và tốn Wi-Fi/CPU vô ích).
+
+### FPS thực tế
+
+Đo trên RMX5107 (display đang ở mode 60 Hz, `--print-fps`):
+
+- Cao nhất 60–61 fps, nhưng trung bình ~52 fps khi vuốt liên tục, có lúc tụt 30–40 fps
+  và thỉnh thoảng `+1 frames skipped`.
+- Nguyên nhân: đang mirror **qua Wi-Fi**; màn hình tĩnh thì encoder cũng gần như không
+  gửi frame mới nên số đo thấp, còn lúc có chuyển động thì phụ thuộc băng thông Wi-Fi.
+- Muốn 60 fps ổn định: cắm **USB** (`-s <serial>` không dùng `ip:port`) hoặc giảm
+  `--max-size`/`--video-bit-rate`.
 
 ### Vì sao không cần nhân 1.5 cho DPI
 
