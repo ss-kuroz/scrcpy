@@ -1,0 +1,186 @@
+<Window x:Class="KuroScrcpy.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="KuroScrcpy" Height="780" Width="1200" MinHeight="640" MinWidth="980"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource Bg}"
+        FontFamily="Segoe UI">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="72"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="34"/>
+    </Grid.RowDefinitions>
+
+    <!-- Header -->
+    <Grid Grid.Row="0" Margin="22,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+
+      <StackPanel VerticalAlignment="Center">
+        <TextBlock Text="KuroScrcpy" FontSize="21" FontWeight="SemiBold"
+                   Foreground="{StaticResource Text}"/>
+        <TextBlock x:Name="SubtitleText" Text="Đang quét thiết bị…" FontSize="11.5"
+                   Foreground="{StaticResource Muted}" Margin="0,3,0,0"/>
+      </StackPanel>
+
+      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+        <TextBlock x:Name="PathText" VerticalAlignment="Center" FontSize="11.5"
+                   Foreground="{StaticResource Muted}" MaxWidth="360"
+                   TextTrimming="CharacterEllipsis" ToolTip="{Binding RelativeSource={RelativeSource Self}, Path=Text}"/>
+        <Button Content="Đổi thư mục" Style="{StaticResource Btn}" Margin="10,0,0,0" Click="BrowseBtn_Click"/>
+        <Button Content="Pair…" Style="{StaticResource Btn}" Margin="8,0,0,0" Click="PairBtn_Click"/>
+        <Button Content="Làm mới" Style="{StaticResource Btn}" Margin="8,0,0,0" Click="RefreshBtn_Click"/>
+      </StackPanel>
+    </Grid>
+
+    <!-- Body -->
+    <Grid Grid.Row="1" Margin="22,0,22,14">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="470"/>
+        <ColumnDefinition Width="16"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- Devices -->
+      <Border Grid.Column="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
+              BorderThickness="1" CornerRadius="10" Padding="14">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+
+          <TextBlock Grid.Row="0" Text="THIẾT BỊ" FontSize="11" FontWeight="SemiBold"
+                     Foreground="{StaticResource Muted}" Margin="2,0,0,10"/>
+
+          <ListView x:Name="DevicesList" Grid.Row="1" SelectionChanged="DevicesList_SelectionChanged"
+                    ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListView.ItemTemplate>
+              <DataTemplate>
+                <Grid AutomationProperties.Name="{Binding Subtitle}">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                  </Grid.ColumnDefinitions>
+                  <Ellipse Grid.Column="0" Width="9" Height="9" Fill="{Binding StatusBrush}"
+                           VerticalAlignment="Top" Margin="0,6,10,0"/>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Text="{Binding Title}" FontSize="13.5" FontWeight="SemiBold"
+                               Foreground="{StaticResource Text}" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding Subtitle}" FontSize="11.5" Margin="0,2,0,0"
+                               Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ListView.ItemTemplate>
+          </ListView>
+
+          <Grid Grid.Row="2" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Button x:Name="ConnectBtn" Grid.Column="0" Content="Connect" Style="{StaticResource Btn}"
+                    Margin="0,0,6,0" Click="ConnectBtn_Click"/>
+            <Button x:Name="DisconnectBtn" Grid.Column="1" Content="Disconnect" Style="{StaticResource Btn}"
+                    Margin="0,0,6,0" Click="DisconnectBtn_Click"/>
+            <Button Grid.Column="2" Content="Pair…" Style="{StaticResource Btn}" Click="PairBtn_Click"/>
+          </Grid>
+        </Grid>
+      </Border>
+
+      <!-- Right: settings + log -->
+      <Grid Grid.Column="2">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
+                BorderThickness="1" CornerRadius="10" Padding="16">
+          <StackPanel>
+            <TextBlock Text="CẤU HÌNH MIRROR" FontSize="11" FontWeight="SemiBold"
+                       Foreground="{StaticResource Muted}" Margin="0,0,0,12"/>
+
+            <TextBlock Text="Frame rate" FontSize="12" Foreground="{StaticResource Muted}" Margin="0,0,0,6"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+              <RadioButton x:Name="RbFps30" Content="30" GroupName="fps" Style="{StaticResource Pill}" Margin="0,0,6,0"/>
+              <RadioButton x:Name="RbFps60" Content="60" GroupName="fps" Style="{StaticResource Pill}" Margin="0,0,6,0" IsChecked="True"/>
+              <RadioButton x:Name="RbFps90" Content="90" GroupName="fps" Style="{StaticResource Pill}" Margin="0,0,6,0"/>
+              <RadioButton x:Name="RbFps120" Content="120" GroupName="fps" Style="{StaticResource Pill}" Margin="0,0,6,0"/>
+              <RadioButton x:Name="RbFpsMax" Content="Max" GroupName="fps" Style="{StaticResource Pill}"/>
+            </StackPanel>
+
+            <Grid Margin="0,0,0,14">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Text="Bitrate" FontSize="12" Foreground="{StaticResource Muted}"
+                         VerticalAlignment="Center" Margin="0,0,12,0"/>
+              <TextBox x:Name="BitRateBox" Grid.Column="1" Width="92" Height="32"
+                       VerticalContentAlignment="Center" Text="8M"/>
+              <TextBlock Grid.Column="2" Text="ví dụ 8M, 16M, 24M (mặc định 8M)"
+                         FontSize="11.5" Foreground="{StaticResource Muted}" VerticalAlignment="Center"
+                         Margin="10,0,0,0"/>
+            </Grid>
+
+            <TextBlock Text="Âm thanh" FontSize="12" Foreground="{StaticResource Muted}" Margin="0,0,0,6"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+              <RadioButton x:Name="RbAudioOff" Content="Tắt" GroupName="audio" Style="{StaticResource Pill}" Margin="0,0,6,0"/>
+              <RadioButton x:Name="RbAudioPc" Content="PC (tắt loa máy)" GroupName="audio" Style="{StaticResource Pill}" Margin="0,0,6,0" IsChecked="True"/>
+              <RadioButton x:Name="RbAudioBoth" Content="Cả hai" GroupName="audio" Style="{StaticResource Pill}"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal">
+              <CheckBox x:Name="ChkLandscape" Content="Khoá landscape khi mirror" IsChecked="True" Margin="0,0,18,0"/>
+              <CheckBox x:Name="ChkControl" Content="Cho phép điều khiển chuột/phím"/>
+              <CheckBox x:Name="ChkAutoConnect" Content="Tự connect wireless" IsChecked="True" Margin="18,0,0,0"/>
+            </StackPanel>
+
+            <TextBlock Text="Độ phân giải luôn lấy đúng theo màn hình điện thoại (không scale)."
+                       FontSize="11.5" Foreground="{StaticResource Muted}" Margin="0,10,0,0"/>
+          </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,12">
+          <Button x:Name="StartBtn" Content="▶  Bắt đầu mirror" Style="{StaticResource AccentBtn}" Click="StartBtn_Click"/>
+          <Button x:Name="StopBtn" Content="Dừng" Style="{StaticResource Btn}" Margin="8,0,0,0" Click="StopBtn_Click"/>
+          <Button Content="Dừng tất cả" Style="{StaticResource DangerBtn}" Margin="8,0,0,0" Click="StopAllBtn_Click"/>
+          <Button Content="Xếp lại cửa sổ" Style="{StaticResource Btn}" Margin="8,0,0,0" Click="ArrangeBtn_Click"/>
+        </StackPanel>
+
+        <Border Grid.Row="2" Background="#0B0D12" BorderBrush="{StaticResource Line}"
+                BorderThickness="1" CornerRadius="10" Padding="10">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="NHẬT KÝ" FontSize="11" FontWeight="SemiBold"
+                       Foreground="{StaticResource Muted}" Margin="2,0,0,6"/>
+            <TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" BorderThickness="0"
+                     Background="Transparent" Foreground="#AEB6C8" FontFamily="Consolas"
+                     FontSize="11.5" TextWrapping="Wrap" AcceptsReturn="True"
+                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"/>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <!-- Status bar -->
+    <Grid Grid.Row="2" Margin="22,0">
+      <TextBlock x:Name="StatusText" VerticalAlignment="Center" FontSize="11.5"
+                 Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
+      <TextBlock Text="scrcpy 5.0.1 · Kuro build" HorizontalAlignment="Right" VerticalAlignment="Center"
+                 FontSize="11.5" Foreground="{StaticResource Muted}"/>
+    </Grid>
+  </Grid>
+</Window>

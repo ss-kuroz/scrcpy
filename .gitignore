@@ -4,6 +4,9 @@ build/
 !/dist/
 # Scratch temp (adb server log, test artifacts)
 /.temp/
+# KuroScrcpy UI (.NET build output)
+ui/**/bin/
+ui/**/obj/
 /build-*/
 /build_*/
 /release-*/

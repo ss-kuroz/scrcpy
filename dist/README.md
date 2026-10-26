@@ -54,12 +54,13 @@ Script **không** truyền `--no-audio`, nên scrcpy forward cả tiếng. Mặc
 | --- | --- |
 | `output` (mặc định) | Forward toàn bộ âm thanh ra **PC**, đồng thời **tắt loa điện thoại** |
 | `playback` | Chỉ lấy audio của app đang play (app có thể opt-out), điện thoại vẫn phát |
+| `playback` + `--audio-dup` | **Vừa phát trên PC vừa phát trên loa điện thoại** (script `view-p4*.cmd` dùng cách này) |
 | `mic` | Lấy micro |
 
 - Hai điện thoại cùng mở → hai luồng audio **mix chung** vào output device mặc định của
   Windows (scrcpy không cho chọn thiết bị ra). Muốn tách thì đổi default output hoặc
   dùng virtual cable.
-- Muốn điện thoại vẫn kêu: thêm `--audio-source=playback`.
+- Muốn điện thoại vẫn kêu: thêm `--audio-dup`.
 - Muốn tắt tiếng hoàn toàn: thêm `--no-audio`.
 - Audio qua Wi-Fi dễ rè/giật do jitter; USB ổn định hơn. Nếu nghe giật, tăng
   `--audio-buffer=200`.

@@ -1,0 +1,75 @@
+<Window x:Class="KuroScrcpy.PairDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Pair thiết bị" Width="520" Height="470"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource Bg}"
+        FontFamily="Segoe UI">
+  <Grid Margin="18">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <TextBlock Grid.Row="0" Text="Pair thiết bị wireless" FontSize="17" FontWeight="SemiBold"
+               Foreground="{StaticResource Text}"/>
+    <TextBlock Grid.Row="1" Margin="0,6,0,10" TextWrapping="Wrap" FontSize="12"
+               Foreground="{StaticResource Muted}"
+               Text="Trên điện thoại: Bật Wireless debugging → “Pair device with pairing code”. Danh sách bên dưới sẽ hiện dịch vụ pairing, nhập mã 6 số."/>
+
+    <Border Grid.Row="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
+            BorderThickness="1" CornerRadius="8" Padding="8">
+      <ListBox x:Name="ServiceList" Background="Transparent" BorderThickness="0"
+               Foreground="{StaticResource Text}">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <StackPanel Margin="4,6">
+              <TextBlock Text="{Binding Address}" FontSize="13" Foreground="{StaticResource Text}"/>
+              <TextBlock Text="{Binding Name}" FontSize="11" Foreground="{StaticResource Muted}"/>
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <Grid Grid.Row="3" Margin="0,12,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <TextBox x:Name="AddressBox" Grid.Column="0" Height="34" VerticalContentAlignment="Center"
+               ToolTip="ip:port của dịch vụ pairing (tự điền khi chọn ở trên)"/>
+      <TextBlock Grid.Column="1" Text="địa chỉ pairing" Margin="8,0,0,0" VerticalAlignment="Center"
+                 FontSize="12" Foreground="{StaticResource Muted}"/>
+    </Grid>
+
+    <Grid Grid.Row="4" Margin="0,8,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="160"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+      <TextBox x:Name="CodeBox" Grid.Column="0" Height="34" VerticalContentAlignment="Center"
+               MaxLength="6" FontSize="16" ToolTip="Mã 6 số hiện trên điện thoại"/>
+      <TextBlock Grid.Column="1" Text="mã pairing 6 số (hiện trên điện thoại)" Margin="8,0,0,0"
+                 VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource Muted}"/>
+    </Grid>
+
+    <Grid Grid.Row="5" Margin="0,16,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <TextBlock x:Name="StatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="12"
+                 Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+      <Button x:Name="PairBtn" Grid.Column="1" Content="Pair" Style="{StaticResource AccentBtn}"
+              Width="96" Click="PairBtn_Click"/>
+      <Button x:Name="CloseBtn" Grid.Column="2" Content="Đóng" Style="{StaticResource Btn}"
+              Width="80" Margin="8,0,0,0" Click="CloseBtn_Click"/>
+    </Grid>
+  </Grid>
+</Window>
