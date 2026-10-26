@@ -9,7 +9,6 @@ public class AppSettings
     public int MaxFps { get; set; } = 60;
     public string BitRate { get; set; } = "8M";
     public string AudioMode { get; set; } = "PcOnly"; // Off | PcOnly | Both
-    public bool PcLandscape { get; set; } = true;
     public bool AutoConnectWireless { get; set; } = true;
     public bool AllowControl { get; set; } = false;
 

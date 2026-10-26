@@ -17,8 +17,6 @@ public class MirrorOptions
     public string BitRate { get; set; } = "8M";
     public AudioMode Audio { get; set; } = AudioMode.PcOnly;
     public bool AllowControl { get; set; }
-    /// <summary>Xoay khung hinh ngang tren PC (--orientation), khong doi setting cua dien thoai.</summary>
-    public bool PcLandscape { get; set; } = true;
 }
 
 public class MirrorSession
@@ -103,7 +101,7 @@ public class ScrcpyRunner
         };
 
         // Xoay ngang tren PC: --orientation la client-side, khong doi setting dien thoai
-        if (options.PcLandscape && portrait)
+        if (portrait)
         {
             args.Add("--orientation=90");
             (nativeWidth, nativeHeight) = (nativeHeight, nativeWidth);
